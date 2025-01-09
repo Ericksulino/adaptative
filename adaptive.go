@@ -602,7 +602,7 @@ func main() {
 	switch *mode {
 	case "predict":
 		//serverIP := *ip
-		serverIP := "200.137.163.231"
+		serverIP := `localhost`
 		fmt.Printf("Utilizando IP: %s\n", serverIP)
 
 		// Obter o token JWT
