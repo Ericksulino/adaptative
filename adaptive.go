@@ -607,6 +607,30 @@ func runCreateAssetBench(tps int, numTransactions int) error {
 	return nil
 }
 
+func calculateBlockNumber(currentBlockNumber int, BT float64, BS int, numTransactions int, tps int) int {
+	// Transações possíveis por bloco devido ao Batch Timeout
+	transactionsPerBlockByBT := int(BT * float64(tps))
+
+	// Transações por bloco é o menor valor entre BS e transactionsPerBlockByBT
+	transactionsPerBlock := min(BS, transactionsPerBlockByBT)
+
+	// Número de blocos necessários
+	blocksNeeded := (numTransactions + transactionsPerBlock - 1) / transactionsPerBlock // Arredondar para cima
+
+	// Novo número de bloco
+	newBlockNumber := currentBlockNumber + blocksNeeded
+
+	return newBlockNumber
+}
+
+// Função auxiliar para encontrar o mínimo entre dois inteiros
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func main() {
 	mode := flag.String("mode", "predict", "Modo de operação: predict, modify ou bench")
 	algo := flag.String("algo", "apbft", "Algoritmo: fabman ou apbft")
@@ -660,6 +684,8 @@ func main() {
 		if err != nil {
 			fmt.Println("Erro ao rodar o benchmark:", err)
 		} else {
+			newBlockNumber := calculateBlockNumber(*blockNumber, *batchTimeout, *batchSize, *numTransactions, *tps)
+			fmt.Printf("Novo número do bloco: %d\n", newBlockNumber)
 			fmt.Println("Benchmark executado com sucesso.")
 		}
 
