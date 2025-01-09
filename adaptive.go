@@ -609,56 +609,60 @@ func runCreateAssetBench(tps int, numTransactions int) error {
 
 func main() {
 	mode := flag.String("mode", "predict", "Modo de operação: predict, modify ou bench")
-	algo := flag.String("algo", "apbft", "Modo de operação: fabman ou apbft")
-	//ip := flag.String("ip", "localhost", "Endereço IP do servidor (padrão: localhost)")
+	algo := flag.String("algo", "apbft", "Algoritmo: fabman ou apbft")
 	blockNumber := flag.Int("block", 168, "Número do bloco para análise")
 	batchTimeout := flag.Float64("bt", 2.0, "Batch Timeout atual (em segundos)")
 	batchSize := flag.Int("bs", 10, "Batch Size atual (em número de mensagens)")
 	lambda := flag.Float64("lambda", 0.3, "Fator de suavização para EWMA")
 	alpha := flag.Float64("alpha", 0.1, "Fator alpha para previsão do aPBFT")
 	tdelay := flag.Float64("tdelay", 3.0, "Latência máxima tolerada pelo sistema (Tdelay)")
+	tps := flag.Int("tps", 100, "Transações por segundo (apenas para bench)")
+	numTransactions := flag.Int("numTx", 1000, "Número de transações totais (apenas para bench)")
 	flag.Parse()
 
-	// Escolher modo de operação
 	switch *mode {
 	case "predict":
-		//serverIP := *ip
+		// Previsão de parâmetros
 		serverIP := `localhost`
 		fmt.Printf("Utilizando IP: %s\n", serverIP)
 
-		// Obter o token JWT
 		token, err := getJWTToken(serverIP)
 		if err != nil {
 			fmt.Printf("Erro ao obter token JWT no IP %s: %v\n", serverIP, err)
 			return
 		}
 
-		// Obter e processar dados do bloco e transações
 		blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, *blockNumber, token)
 		if err != nil {
 			fmt.Println("Erro ao buscar dados do bloco e transações:", err)
 			return
 		}
-		if *algo == "fabman" {
+
+		switch *algo {
+		case "fabman":
 			processFabMAN(*batchTimeout, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
-		} else if *algo == "apbft" {
+		case "apbft":
 			processAPBFT(transactions, *batchTimeout, *alpha, blockData)
+		default:
+			fmt.Println("Algoritmo inválido. Escolha entre fabman ou apbft.")
+			return
 		}
+
 	case "modify":
+		// Modificação de parâmetros
 		fmt.Println("Modo modify selecionado")
 		modifyParameters(*batchTimeout, *batchSize)
 
 	case "bench":
-		// Exemplo de uso
-		tps := 100
-		numTransactions := 1000
-
-		err := runCreateAssetBench(tps, numTransactions)
+		// Benchmark
+		fmt.Printf("Iniciando benchmark com TPS=%d e numTransactions=%d\n", *tps, *numTransactions)
+		err := runCreateAssetBench(*tps, *numTransactions)
 		if err != nil {
-			fmt.Println("Erro ao rodar o comando.")
+			fmt.Println("Erro ao rodar o benchmark:", err)
 		} else {
-			fmt.Println("Comando executado com sucesso.")
+			fmt.Println("Benchmark executado com sucesso.")
 		}
+
 	default:
 		fmt.Println("Modo inválido. Escolha entre predict, modify ou bench.")
 	}
