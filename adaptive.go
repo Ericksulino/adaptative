@@ -586,8 +586,29 @@ func modifyParameters(newBatchTimeout float64, newBatchSize int) {
 	fmt.Println("Batch size and batch timeout modification completed successfully.")
 }
 
+// runCreateAssetBench executa o comando para criar ativos no Fabric Client
+func runCreateAssetBench(tps int, numTransactions int) error {
+	// Diretório onde o script está localizado (volta uma pasta antes de HLF_PET_go/)
+	clientDir := "./HLF_PET_go/"
+
+	// Montar o comando completo com o caminho relativo
+	cmd := exec.Command(clientDir+"fabric-client", "createAssetBench", fmt.Sprintf("%d", tps), fmt.Sprintf("%d", numTransactions))
+
+	// Executar o comando
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Erro ao executar o comando: %v\n", err)
+		fmt.Printf("Saída do comando: %s\n", string(output))
+		return err
+	}
+
+	// Exibir a saída do comando
+	fmt.Printf("Saída do comando:\n%s\n", string(output))
+	return nil
+}
+
 func main() {
-	mode := flag.String("mode", "predict", "Modo de operação: predict ou modify")
+	mode := flag.String("mode", "predict", "Modo de operação: predict, modify ou bench")
 	algo := flag.String("algo", "apbft", "Modo de operação: fabman ou apbft")
 	//ip := flag.String("ip", "localhost", "Endereço IP do servidor (padrão: localhost)")
 	blockNumber := flag.Int("block", 168, "Número do bloco para análise")
@@ -627,7 +648,18 @@ func main() {
 		fmt.Println("Modo modify selecionado")
 		modifyParameters(*batchTimeout, *batchSize)
 
+	case "bench":
+		// Exemplo de uso
+		tps := 100
+		numTransactions := 1000
+
+		err := runCreateAssetBench(tps, numTransactions)
+		if err != nil {
+			fmt.Println("Erro ao rodar o comando.")
+		} else {
+			fmt.Println("Comando executado com sucesso.")
+		}
 	default:
-		fmt.Println("Modo inválido. Escolha entre 'fabman', 'apbft' ou 'modify'.")
+		fmt.Println("Modo inválido. Escolha entre predict, modify ou bench.")
 	}
 }
