@@ -589,7 +589,7 @@ func modifyParameters(newBatchTimeout float64, newBatchSize int) {
 // runCreateAssetBench executa o comando para criar ativos no Fabric Client
 func runCreateAssetBench(tps int, numTransactions int) error {
 	// Diretório onde o script está localizado (volta uma pasta antes de HLF_PET_go/)
-	clientDir := "./HLF_PET_go/"
+	clientDir := "../HLF_PET_go/"
 
 	// Montar o comando completo com o caminho relativo
 	cmd := exec.Command(clientDir+"fabric-client", "createAssetBench", fmt.Sprintf("%d", tps), fmt.Sprintf("%d", numTransactions))
