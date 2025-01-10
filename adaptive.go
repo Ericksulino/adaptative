@@ -734,6 +734,10 @@ func main() {
 				continue
 			}
 
+			currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
+
+			fmt.Printf("Novo número do bloco: %d\n", currentBlockNumber)
+
 			// Buscar os dados do bloco e transações
 			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber, token)
 			if err != nil {
@@ -755,9 +759,6 @@ func main() {
 			// Atualizar os valores para a próxima iteração
 			currentBT = newBT
 			currentBS = newBS
-			currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
-
-			fmt.Printf("Novo número do bloco para a próxima iteração: %d\n", currentBlockNumber)
 		}
 
 	default:
