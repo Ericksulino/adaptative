@@ -437,7 +437,7 @@ func processAPBFT(transactions []Transaction, batchTimeout, alpha float64, block
 	fmt.Printf("Predicted Batch Timeout (BT): %.2f segundos\n", predictedBT)
 	fmt.Printf("Predicted Batch Size (BS): %.2f\n", predictedBS)
 
-	return predictedBS, predictedBT
+	return predictedBT, predictedBS
 }
 
 func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
