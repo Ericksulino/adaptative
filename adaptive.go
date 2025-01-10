@@ -639,14 +639,14 @@ func min(a, b int) int {
 func main() {
 	mode := flag.String("mode", "predict", "Modo de operação: predict, modify ou bench")
 	algo := flag.String("algo", "apbft", "Algoritmo: fabman ou apbft")
-	blockNumber := flag.Int("block", 168, "Número do bloco para análise")
+	blockNumber := flag.Int("block", 2, "Número do bloco para análise")
 	batchTimeout := flag.Float64("bt", 2.0, "Batch Timeout atual (em segundos)")
 	batchSize := flag.Int("bs", 10, "Batch Size atual (em número de mensagens)")
 	lambda := flag.Float64("lambda", 0.3, "Fator de suavização para EWMA")
 	alpha := flag.Float64("alpha", 0.1, "Fator alpha para previsão do aPBFT")
 	tdelay := flag.Float64("tdelay", 3.0, "Latência máxima tolerada pelo sistema (Tdelay)")
 	tps := flag.Int("tps", 100, "Transações por segundo (apenas para bench)")
-	numTransactions := flag.Int("numTx", 1000, "Número de transações totais (apenas para bench)")
+	numTransactions := flag.Int("numTx", 100, "Número de transações totais (apenas para bench)")
 	flag.Parse()
 
 	switch *mode {
