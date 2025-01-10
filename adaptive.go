@@ -717,38 +717,30 @@ func main() {
 			return
 		}
 
-		blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, *blockNumber, token)
-		if err != nil {
-			fmt.Println("Erro ao buscar dados do bloco e transações:", err)
-			return
-		}
-
 		for index, carga := range cargas {
-			fmt.Printf("Processando carga %d: %v\n", index, carga)
+			fmt.Printf("Processando carga %d: %d TPS\n", index, carga)
 
-			err := runCreateAssetBench(*tps, *numTransactions)
+			err := runCreateAssetBench(carga, *numTransactions)
 			if err != nil {
 				fmt.Println("Erro ao rodar o benchmark:", err)
-				continue // Pule para a próxima iteração em caso de erro
+				continue
 			}
 
-			// Calcular novo número de bloco
-			newBlockNumber := calculateBlockNumber(*blockNumber, *batchTimeout, *batchSize, *numTransactions, *tps)
-			fmt.Printf("Novo número do bloco: %d\n", newBlockNumber)
+			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, *blockNumber, token)
+			if err != nil {
+				fmt.Println("Erro ao buscar dados do bloco e transações:", err)
+				continue
+			}
 
-			var bt, bs float64
-
-			// Escolher algoritmo de processamento
+			bt, bs := 0.0, 0.0
 			if *algo == "fabman" {
 				bt, bs = processFabMAN(*batchTimeout, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
 			} else {
 				bt, bs = processAPBFT(transactions, *batchTimeout, *alpha, blockData)
 			}
 
-			fmt.Printf("Batch Timeout: %.2f, Batch Size: %.2f\n", bt, bs)
-
-			// Modificar parâmetros com os novos valores
-			modifyParameters(bt, int(bs)) // Convertendo `bs` para int se necessário
+			fmt.Printf("Novo Batch Timeout: %.2f, Novo Batch Size: %.2f\n", bt, bs)
+			modifyParameters(bt, int(bs))
 		}
 
 	default:
