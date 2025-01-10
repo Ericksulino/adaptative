@@ -385,17 +385,17 @@ func calculateAlpha(W int) (float64, error) {
 }
 
 // Função para executar cálculos e previsões do FabMAN
-func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) {
+func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
 	currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, batchTimeout)
 	if err != nil {
 		fmt.Println("Erro ao calcular Ndelay do bloco atual:", err)
-		return
+		return 0, 0 // Retornar valores padrão em caso de erro
 	}
 
 	prevNdelay, err := calculateNetworkDelay(prevBlockData.Data.CreatedAt, prevPrevBlockData.Data.CreatedAt, batchTimeout)
 	if err != nil {
 		fmt.Println("Erro ao calcular Ndelay do bloco anterior:", err)
-		return
+		return 0, 0 // Retornar valores padrão em caso de erro
 	}
 
 	nextNdelay := calculateEWMA(currentNdelay, prevNdelay, lambda)
@@ -406,32 +406,37 @@ func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockDat
 	nextTreq := calculateEWMA(treq, prevTreq, lambda)
 	nextBatchSize := calculateNextBatchSize(nextTreq, 2.0, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
 
+	// Prints
 	fmt.Printf("----------fabMAN-------------\n")
 	fmt.Printf("Ndelay Atual: %.2f segundos\n", currentNdelay)
 	fmt.Printf("Ndelay Anterior: %.2f segundos\n", prevNdelay)
 	fmt.Printf("Próximo Ndelay Previsto (EWMA): %.2f segundos\n", nextNdelay)
 	fmt.Printf("Novo Batch Timeout previsto: %.2f segundos\n", nextBatchTimeout)
 	fmt.Printf("Novo Batch Size previsto: %.2f\n", nextBatchSize)
+
+	return nextBatchTimeout, nextBatchSize
 }
 
 // Função para executar cálculos e previsões do aPBFT
-func processAPBFT(transactions []Transaction, batchTimeout, alpha float64, blockData BlockResponse) {
+func processAPBFT(transactions []Transaction, batchTimeout, alpha float64, blockData BlockResponse) (float64, float64) {
 	orderingTime, executionTime, err := calculateTimes(transactions)
 	if err != nil {
 		fmt.Println("Erro ao calcular os tempos:", err)
-		return
+		return 0, 0 // Retornar valores padrão em caso de erro
 	}
 
 	elapsedTime := orderingTime
 	predictedBT, predictedBS, err := predictBatchParameters(orderingTime, executionTime, blockData.Data.TxCount, elapsedTime, batchTimeout, alpha)
 	if err != nil {
 		fmt.Println("Erro ao predizer parâmetros:", err)
-		return
+		return 0, 0 // Retornar valores padrão em caso de erro
 	}
 
 	fmt.Printf("----------aPBFT-------------\n")
 	fmt.Printf("Predicted Batch Timeout (BT): %.2f segundos\n", predictedBT)
 	fmt.Printf("Predicted Batch Size (BS): %.2f\n", predictedBS)
+
+	return predictedBS, predictedBT
 }
 
 func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
