@@ -630,15 +630,17 @@ func runCreateAssetBench(tps int, numTransactions int) (float64, float64, error)
 
 // parseBenchmarkOutput analisa a saída do benchmark e extrai os valores de TPS achieved e Average Latency
 func parseBenchmarkOutput(output string) (float64, float64, error) {
-	// Usar regex para capturar TPS achieved e Average Latency
-	tpsRegex := regexp.MustCompile(`TPS achieved\s*\|\s*([\d.]+)`)
-	latencyRegex := regexp.MustCompile(`Average Latency\s*\|\s*([\d.]+)s`)
+	// Ajustar regex para capturar TPS achieved e Average Latency, incluindo possíveis espaços adicionais
+	tpsRegex := regexp.MustCompile(`\|\s*TPS achieved\s*\|\s*([\d.]+)`)
+	latencyRegex := regexp.MustCompile(`\|\s*Average Latency\s*\|\s*([\d.]+)s`)
 
 	// Procurar os valores correspondentes
 	tpsMatch := tpsRegex.FindStringSubmatch(output)
 	latencyMatch := latencyRegex.FindStringSubmatch(output)
 
 	if len(tpsMatch) < 2 || len(latencyMatch) < 2 {
+		fmt.Println("Output format mismatch. Verifying full output:")
+		fmt.Println(output)
 		return 0, 0, fmt.Errorf("não foi possível encontrar TPS achieved ou Average Latency na saída")
 	}
 
