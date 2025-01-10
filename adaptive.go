@@ -8,9 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -594,68 +592,24 @@ func modifyParameters(newBatchTimeout float64, newBatchSize int) {
 }
 
 // runCreateAssetBench executa o comando para criar ativos no Fabric Client
-// e retorna o TPS achieved e Average Latency
-func runCreateAssetBench(tps int, numTransactions int) (float64, float64, error) {
+func runCreateAssetBench(tps int, numTransactions int) error {
 	// Diretório onde o script está localizado (volta uma pasta antes de HLF_PET_go/)
 	clientDir := "../HLF_PET_go/"
 
 	// Montar o comando completo com o caminho relativo
 	cmd := exec.Command(clientDir+"fabric-client", "createAssetBench", fmt.Sprintf("%d", tps), fmt.Sprintf("%d", numTransactions))
 
-	// Buffer para capturar a saída
-	var outputBuffer bytes.Buffer
-	cmd.Stdout = &outputBuffer
-	cmd.Stderr = &outputBuffer
-
 	// Executar o comando
-	err := cmd.Run()
-	output := outputBuffer.String()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Erro ao executar o comando: %v\n", err)
-		fmt.Printf("Saída do comando: %s\n", output)
-		return 0, 0, err
+		fmt.Printf("Saída do comando: %s\n", string(output))
+		return err
 	}
 
 	// Exibir a saída do comando
-	fmt.Printf("Saída do comando:\n%s\n", output)
-
-	// Analisar a saída para obter os valores
-	tpsAchieved, avgLatency, parseErr := parseBenchmarkOutput(output)
-	if parseErr != nil {
-		return 0, 0, parseErr
-	}
-
-	return tpsAchieved, avgLatency, nil
-}
-
-// parseBenchmarkOutput analisa a saída do benchmark e extrai os valores de TPS achieved e Average Latency
-func parseBenchmarkOutput(output string) (float64, float64, error) {
-	// Ajustar regex para capturar TPS achieved e Average Latency, incluindo possíveis espaços adicionais
-	tpsRegex := regexp.MustCompile(`\|\s*TPS achieved\s*\|\s*([\d.]+)`)
-	latencyRegex := regexp.MustCompile(`\|\s*Average Latency\s*\|\s*([\d.]+)s`)
-
-	// Procurar os valores correspondentes
-	tpsMatch := tpsRegex.FindStringSubmatch(output)
-	latencyMatch := latencyRegex.FindStringSubmatch(output)
-
-	if len(tpsMatch) < 2 || len(latencyMatch) < 2 {
-		fmt.Println("Output format mismatch. Verifying full output:")
-		fmt.Println(output)
-		return 0, 0, fmt.Errorf("não foi possível encontrar TPS achieved ou Average Latency na saída")
-	}
-
-	// Converter os valores para float
-	tpsAchieved, err := strconv.ParseFloat(strings.TrimSpace(tpsMatch[1]), 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("erro ao converter TPS achieved: %v", err)
-	}
-
-	avgLatency, err := strconv.ParseFloat(strings.TrimSpace(latencyMatch[1]), 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("erro ao converter Average Latency: %v", err)
-	}
-
-	return tpsAchieved, avgLatency, nil
+	fmt.Printf("Saída do comando:\n%s\n", string(output))
+	return nil
 }
 
 func calculateBlockNumber(currentBlockNumber int, BT float64, BS int, numTransactions int, tps int) int {
@@ -731,13 +685,13 @@ func main() {
 	case "bench":
 		// Benchmark
 		fmt.Printf("Iniciando benchmark com TPS=%d e numTransactions=%d\n", *tps, *numTransactions)
-		tpsAchieved, avgLatency, err := runCreateAssetBench(*tps, *numTransactions)
+		err := runCreateAssetBench(*tps, *numTransactions)
 		if err != nil {
-			fmt.Println("Erro ao executar benchmark:", err)
+			fmt.Println("Erro ao rodar o benchmark:", err)
 		} else {
-			fmt.Printf("Benchmark concluído:\n")
-			fmt.Printf("TPS achieved: %.2f\n", tpsAchieved)
-			fmt.Printf("Average Latency: %.2f segundos\n", avgLatency)
+			newBlockNumber := calculateBlockNumber(*blockNumber, *batchTimeout, *batchSize, *numTransactions, *tps)
+			fmt.Printf("Novo número do bloco: %d\n", newBlockNumber)
+			fmt.Println("Benchmark executado com sucesso.")
 		}
 
 	default:
