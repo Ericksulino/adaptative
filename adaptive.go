@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -637,7 +638,7 @@ func min(a, b int) int {
 }
 
 func main() {
-	mode := flag.String("mode", "predict", "Modo de operação: predict, modify ou bench")
+	mode := flag.String("mode", "predict", "Modo de operação: predict, modify, bench, benchAv")
 	algo := flag.String("algo", "apbft", "Algoritmo: fabman ou apbft")
 	blockNumber := flag.Int("block", 2, "Número do bloco para análise")
 	batchTimeout := flag.Float64("bt", 2.0, "Batch Timeout atual (em segundos)")
@@ -647,6 +648,7 @@ func main() {
 	tdelay := flag.Float64("tdelay", 3.0, "Latência máxima tolerada pelo sistema (Tdelay)")
 	tps := flag.Int("tps", 100, "Transações por segundo (apenas para bench)")
 	numTransactions := flag.Int("numTx", 100, "Número de transações totais (apenas para bench)")
+	cargasFlag := flag.String("loads", "5,5,5", "Lista de cargas sepradas por vírgulas")
 	flag.Parse()
 
 	switch *mode {
@@ -692,6 +694,61 @@ func main() {
 			newBlockNumber := calculateBlockNumber(*blockNumber, *batchTimeout, *batchSize, *numTransactions, *tps)
 			fmt.Printf("Novo número do bloco: %d\n", newBlockNumber)
 			fmt.Println("Benchmark executado com sucesso.")
+		}
+	case "benchAv":
+		parts := strings.Split(*cargasFlag, ",")
+		cargas := make([]int, len(parts))
+
+		for i, part := range parts {
+			num, err := strconv.Atoi(strings.TrimSpace(part))
+			if err != nil {
+				fmt.Printf("Erro ao converter carga '%s' para inteiro: %v\n", part, err)
+				continue
+			}
+			cargas[i] = num
+		}
+
+		serverIP := `localhost`
+		fmt.Printf("Utilizando IP: %s\n", serverIP)
+
+		token, err := getJWTToken(serverIP)
+		if err != nil {
+			fmt.Printf("Erro ao obter token JWT no IP %s: %v\n", serverIP, err)
+			return
+		}
+
+		blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, *blockNumber, token)
+		if err != nil {
+			fmt.Println("Erro ao buscar dados do bloco e transações:", err)
+			return
+		}
+
+		for index, carga := range cargas {
+			fmt.Printf("Processando carga %d: %v\n", index, carga)
+
+			err := runCreateAssetBench(*tps, *numTransactions)
+			if err != nil {
+				fmt.Println("Erro ao rodar o benchmark:", err)
+				continue // Pule para a próxima iteração em caso de erro
+			}
+
+			// Calcular novo número de bloco
+			newBlockNumber := calculateBlockNumber(*blockNumber, *batchTimeout, *batchSize, *numTransactions, *tps)
+			fmt.Printf("Novo número do bloco: %d\n", newBlockNumber)
+
+			var bt, bs float64
+
+			// Escolher algoritmo de processamento
+			if *algo == "fabman" {
+				bt, bs = processFabMAN(*batchTimeout, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
+			} else {
+				bt, bs = processAPBFT(transactions, *batchTimeout, *alpha, blockData)
+			}
+
+			fmt.Printf("Batch Timeout: %.2f, Batch Size: %.2f\n", bt, bs)
+
+			// Modificar parâmetros com os novos valores
+			modifyParameters(bt, int(bs)) // Convertendo `bs` para int se necessário
 		}
 
 	default:
