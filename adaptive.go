@@ -749,8 +749,6 @@ func main() {
 				newBT, newBS = processAPBFT(transactions, currentBT, *alpha, blockData)
 			}
 
-			fmt.Printf("Novo Batch Timeout: %.2f, Novo Batch Size: %.2f\n", newBT, newBS)
-
 			// Modificar os parâmetros com os valores previstos
 			modifyParameters(newBT, int(newBS))
 
@@ -763,6 +761,6 @@ func main() {
 		}
 
 	default:
-		fmt.Println("Modo inválido. Escolha entre predict, modify ou bench.")
+		fmt.Println("Modo inválido. Escolha entre predict, modify, bench ou benchAv.")
 	}
 }
