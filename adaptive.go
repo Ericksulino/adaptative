@@ -696,6 +696,7 @@ func main() {
 			fmt.Println("Benchmark executado com sucesso.")
 		}
 	case "benchAv":
+		// Dividir as cargas fornecidas na flag
 		parts := strings.Split(*cargasFlag, ",")
 		cargas := make([]int, len(parts))
 
@@ -711,36 +712,54 @@ func main() {
 		serverIP := `localhost`
 		fmt.Printf("Utilizando IP: %s\n", serverIP)
 
+		// Obter o token JWT
 		token, err := getJWTToken(serverIP)
 		if err != nil {
 			fmt.Printf("Erro ao obter token JWT no IP %s: %v\n", serverIP, err)
 			return
 		}
 
+		// Variáveis para armazenar os valores de BT, BS e número do bloco
+		currentBT := *batchTimeout
+		currentBS := float64(*batchSize)
+		currentBlockNumber := *blockNumber
+
 		for index, carga := range cargas {
 			fmt.Printf("Processando carga %d: %d TPS\n", index, carga)
 
+			// Executar benchmark
 			err := runCreateAssetBench(carga, *numTransactions)
 			if err != nil {
 				fmt.Println("Erro ao rodar o benchmark:", err)
 				continue
 			}
 
-			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, *blockNumber, token)
+			// Buscar os dados do bloco e transações
+			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber, token)
 			if err != nil {
 				fmt.Println("Erro ao buscar dados do bloco e transações:", err)
 				continue
 			}
 
-			bt, bs := 0.0, 0.0
+			// Predizer os próximos BT e BS
+			var newBT, newBS float64
 			if *algo == "fabman" {
-				bt, bs = processFabMAN(*batchTimeout, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
+				newBT, newBS = processFabMAN(currentBT, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
 			} else {
-				bt, bs = processAPBFT(transactions, *batchTimeout, *alpha, blockData)
+				newBT, newBS = processAPBFT(transactions, currentBT, *alpha, blockData)
 			}
 
-			fmt.Printf("Novo Batch Timeout: %.2f, Novo Batch Size: %.2f\n", bt, bs)
-			modifyParameters(bt, int(bs))
+			fmt.Printf("Novo Batch Timeout: %.2f, Novo Batch Size: %.2f\n", newBT, newBS)
+
+			// Modificar os parâmetros com os valores previstos
+			modifyParameters(newBT, int(newBS))
+
+			// Atualizar os valores para a próxima iteração
+			currentBT = newBT
+			currentBS = newBS
+			currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
+
+			fmt.Printf("Novo número do bloco para a próxima iteração: %d\n", currentBlockNumber)
 		}
 
 	default:
