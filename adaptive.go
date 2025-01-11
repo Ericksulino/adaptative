@@ -436,12 +436,7 @@ func processAPBFT(transactions []Transaction, batchTimeout, alpha float64, block
 	return predictedBT, predictedBS
 }
 
-func fetchBlockDataAndTransactions(serverIP string, blockNumberStr string, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
-	// Converter blockNumber de string para int
-	blockNumber, err := strconv.Atoi(blockNumberStr)
-	if err != nil {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao converter blockNumber para int: %v", err)
-	}
+func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
 
 	// Obter o channelGenesisHash
 	channelGenesisHash, err := getChannelGenesisHash(serverIP, token)
@@ -615,13 +610,7 @@ func runCreateAssetBench(tps int, numTransactions int) error {
 	return nil
 }
 
-func calculateBlockNumber(currentBlockNumber string, BT float64, BS int, numTransactions int, tps int) string {
-	// Converter currentBlockNumber de string para int
-	currentBlockInt, err := strconv.Atoi(currentBlockNumber)
-	if err != nil {
-		fmt.Printf("Erro ao converter currentBlockNumber para int: %v\n", err)
-		return currentBlockNumber // Retornar o valor original em caso de erro
-	}
+func calculateBlockNumber(currentBlockNumber int, BT float64, BS int, numTransactions int, tps int) int {
 
 	// Transações possíveis por bloco devido ao Batch Timeout
 	transactionsPerBlockByBT := int(BT * float64(tps))
@@ -633,10 +622,10 @@ func calculateBlockNumber(currentBlockNumber string, BT float64, BS int, numTran
 	blocksNeeded := (numTransactions + transactionsPerBlock - 1) / transactionsPerBlock // Arredondar para cima
 
 	// Novo número de bloco
-	newBlockNumber := currentBlockInt + blocksNeeded
+	newBlockNumber := currentBlockNumber + blocksNeeded
 
 	// Converter de volta para string
-	return strconv.Itoa(newBlockNumber)
+	return newBlockNumber
 }
 
 // Função auxiliar para encontrar o mínimo entre dois inteiros
@@ -650,7 +639,7 @@ func min(a, b int) int {
 func main() {
 	mode := flag.String("mode", "predict", "Modo de operação: predict, modify, bench, benchAv")
 	algo := flag.String("algo", "apbft", "Algoritmo: fabman ou apbft")
-	blockNumber := flag.String("block", "2", "Número do bloco para análise")
+	blockNumber := flag.Int("block", 2, "Número do bloco para análise")
 	batchTimeout := flag.Float64("bt", 2.0, "Batch Timeout atual (em segundos)")
 	batchSize := flag.Int("bs", 10, "Batch Size atual (em número de mensagens)")
 	lambda := flag.Float64("lambda", 0.3, "Fator de suavização para EWMA")
@@ -701,8 +690,9 @@ func main() {
 		if err != nil {
 			fmt.Println("Erro ao rodar o benchmark:", err)
 		} else {
+			// Converte o número do bloco para string
 			newBlockNumber := calculateBlockNumber(*blockNumber, *batchTimeout, *batchSize, *numTransactions, *tps)
-			fmt.Printf("Novo número do bloco: %s\n", newBlockNumber)
+			fmt.Printf("Novo número do bloco: %d\n", newBlockNumber)
 			fmt.Println("Benchmark executado com sucesso.")
 		}
 	case "benchAv":
@@ -731,7 +721,7 @@ func main() {
 
 		// Variáveis para armazenar os valores de BT, BS e número do bloco
 		currentBT := *batchTimeout
-		//currentBS := float64(*batchSize)
+		currentBS := float64(*batchSize)
 		currentBlockNumber := *blockNumber
 
 		for index, carga := range cargas {
@@ -744,9 +734,9 @@ func main() {
 				continue
 			}
 
-			//currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
+			currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
 
-			fmt.Printf("Novo número do bloco: %s\n", currentBlockNumber)
+			fmt.Printf("Novo número do bloco: %d\n", currentBlockNumber)
 
 			time.Sleep(5)
 
@@ -771,7 +761,7 @@ func main() {
 
 			// Atualizar os valores para a próxima iteração
 			currentBT = newBT
-			//currentBS = newBS
+			currentBS = newBS
 		}
 
 	default:
