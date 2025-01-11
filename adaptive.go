@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net/http"
 	"os/exec"
 	"sort"
@@ -37,6 +36,12 @@ type TransactionResponse struct {
 		TxHash   string `json:"txhash"`
 		Createdt string `json:"createdt"`
 	} `json:"row"`
+}
+
+func createHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 15 * time.Second, // Tempo máximo de 15 segundos para a requisição
+	}
 }
 
 // Função para executar comandos no shell
@@ -117,40 +122,32 @@ func getChannelGenesisHash(ip string, token string) (string, error) {
 	return "", fmt.Errorf("Não foi possível encontrar o channel_genesis_hash")
 }
 
-// Função para obter o bloco com as transações
-func getBlockData(ip string, channelGenesisHash string, blockNumber string, token string) (BlockResponse, error) {
-	// URL da API de Bloco
-	url := fmt.Sprintf("http://"+ip+":8080/api/fetchDataByBlockNo/%s/%s", channelGenesisHash, blockNumber)
+func getBlockData(ip, channelGenesisHash string, blockNumber string, token string) (BlockResponse, error) {
+	client := createHTTPClient()
+	url := fmt.Sprintf("http://%s:8080/api/fetchDataByBlockNo/%s/%s", ip, channelGenesisHash, blockNumber)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return BlockResponse{}, err
 	}
 
-	// Adicionando o token JWT no cabeçalho
 	req.Header.Add("Authorization", "Bearer "+token)
-
-	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return BlockResponse{}, err
 	}
 	defer resp.Body.Close()
 
-	// Verificar status da resposta
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		fmt.Printf("Erro ao obter informações do bloco, status: %d\n", resp.StatusCode)
-		fmt.Printf("Resposta: %s\n", string(body))
-		return BlockResponse{}, fmt.Errorf("Erro ao obter informações do bloco, status: %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		return BlockResponse{}, fmt.Errorf("status code: %d", resp.StatusCode)
 	}
 
-	// Parse da resposta JSON
-	var result BlockResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	var blockData BlockResponse
+	if err := json.NewDecoder(resp.Body).Decode(&blockData); err != nil {
 		return BlockResponse{}, err
 	}
 
-	return result, nil
+	return blockData, nil
 }
 
 // Função para obter a transação e seu createdt
