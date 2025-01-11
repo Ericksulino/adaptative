@@ -121,7 +121,7 @@ func getChannelGenesisHash(ip string, token string) (string, error) {
 // Função para obter o bloco com as transações
 func getBlockData(ip string, channelGenesisHash string, blockNumber string, token string) (BlockResponse, error) {
 	// URL da API de Bloco
-	url := fmt.Sprintf("http://"+ip+":8080/api/fetchDataByBlockNo/%s/%d", channelGenesisHash, blockNumber)
+	url := fmt.Sprintf("http://"+ip+":8080/api/fetchDataByBlockNo/%s/%s", channelGenesisHash, blockNumber)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return BlockResponse{}, err
