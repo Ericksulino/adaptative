@@ -22,10 +22,10 @@ type Transaction struct {
 // Estrutura para resposta da API de transações do bloco
 type BlockResponse struct {
 	Data struct {
-		BlockNum  string   `json:"blocknum"` // Aceita números ou strings
-		TxCount   int      `json:"txcount"`
-		TxHashes  []string `json:"txhash"`
-		CreatedAt string   `json:"createdt"`
+		BlockNum  json.Number `json:"blocknum"` // Aceita números ou strings
+		TxCount   int         `json:"txcount"`
+		TxHashes  []string    `json:"txhash"`
+		CreatedAt string      `json:"createdt"`
 	} `json:"data"`
 }
 
