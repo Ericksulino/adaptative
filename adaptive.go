@@ -659,7 +659,7 @@ func main() {
 	lambda := flag.Float64("lambda", 0.3, "Fator de suavização para EWMA")
 	alpha := flag.Float64("alpha", 0.1, "Fator alpha para previsão do aPBFT")
 	tdelay := flag.Float64("tdelay", 3.0, "Latência máxima tolerada pelo sistema (Tdelay)")
-	tps := flag.Int("tps", 100, "Transações por segundo (apenas para bench)")
+	tps := flag.Int("tps", 5, "Transações por segundo (apenas para bench)")
 	numTransactions := flag.Int("numTx", 100, "Número de transações totais (apenas para bench)")
 	cargasFlag := flag.String("loads", "5,5,5", "Lista de cargas sepradas por vírgulas")
 	flag.Parse()
@@ -751,6 +751,9 @@ func main() {
 
 			fmt.Printf("Novo número do bloco: %s\n", currentBlockNumber)
 
+			time.Sleep(5)
+
+			fmt.Println("Buscando dados do bloco e transações")
 			// Buscar os dados do bloco e transações
 			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber, token)
 			if err != nil {
