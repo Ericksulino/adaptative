@@ -731,7 +731,7 @@ func main() {
 
 		// Variáveis para armazenar os valores de BT, BS e número do bloco
 		currentBT := *batchTimeout
-		currentBS := float64(*batchSize)
+		//currentBS := float64(*batchSize)
 		currentBlockNumber := *blockNumber
 
 		for index, carga := range cargas {
@@ -744,7 +744,7 @@ func main() {
 				continue
 			}
 
-			currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
+			//currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
 
 			fmt.Printf("Novo número do bloco: %s\n", currentBlockNumber)
 
@@ -771,7 +771,7 @@ func main() {
 
 			// Atualizar os valores para a próxima iteração
 			currentBT = newBT
-			currentBS = newBS
+			//currentBS = newBS
 		}
 
 	default:
