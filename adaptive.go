@@ -22,10 +22,10 @@ type Transaction struct {
 // Estrutura para resposta da API de transações do bloco
 type BlockResponse struct {
 	Data struct {
-		BlockNum  json.Number `json:"blocknum"` // Aceita números ou strings
-		TxCount   int         `json:"txcount"`
-		TxHashes  []string    `json:"txhash"`
-		CreatedAt string      `json:"createdt"`
+		BlockNum  string   `json:"blocknum"` // Aceita números ou strings
+		TxCount   int      `json:"txcount"`
+		TxHashes  []string `json:"txhash"`
+		CreatedAt string   `json:"createdt"`
 	} `json:"data"`
 }
 
@@ -147,12 +147,8 @@ func getBlockData(ip, channelGenesisHash, blockNumber, token string) (BlockRespo
 		return BlockResponse{}, fmt.Errorf("erro ao decodificar resposta JSON: %v", err)
 	}
 
-	// Validação adicional do BlockNum
-	blockNum, err := blockData.Data.BlockNum.Int64()
-	if err != nil {
-		return BlockResponse{}, fmt.Errorf("erro ao converter BlockNum para int64: %v", err)
-	}
-	fmt.Printf("BlockNum convertido: %d\n", blockNum)
+	// Exibir o BlockNum como string
+	fmt.Printf("BlockNum recebido: %s\n", blockData.Data.BlockNum)
 
 	return blockData, nil
 }
