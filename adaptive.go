@@ -742,7 +742,7 @@ func main() {
 
 			fmt.Println("Buscando dados do bloco e transações")
 			// Buscar os dados do bloco e transações
-			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber-5, token)
+			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber-1, token)
 			if err != nil {
 				fmt.Println("Erro ao buscar dados do bloco e transações:", err)
 				continue
