@@ -24,7 +24,7 @@ type Transaction struct {
 type BlockResponse struct {
 	Status int `json:"status"`
 	Data   struct {
-		BlockNum  int      `json:"blocknum"`
+		BlockNum  string   `json:"blocknum"`
 		TxCount   int      `json:"txcount"`
 		TxHashes  []string `json:"txhash"`
 		CreatedAt string   `json:"createdt"` // Campo de data do bloco
@@ -119,7 +119,7 @@ func getChannelGenesisHash(ip string, token string) (string, error) {
 }
 
 // Função para obter o bloco com as transações
-func getBlockData(ip string, channelGenesisHash string, blockNumber int, token string) (BlockResponse, error) {
+func getBlockData(ip string, channelGenesisHash string, blockNumber string, token string) (BlockResponse, error) {
 	// URL da API de Bloco
 	url := fmt.Sprintf("http://"+ip+":8080/api/fetchDataByBlockNo/%s/%d", channelGenesisHash, blockNumber)
 	req, err := http.NewRequest("GET", url, nil)
@@ -440,7 +440,13 @@ func processAPBFT(transactions []Transaction, batchTimeout, alpha float64, block
 	return predictedBT, predictedBS
 }
 
-func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
+func fetchBlockDataAndTransactions(serverIP string, blockNumberStr string, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
+	// Converter blockNumber de string para int
+	blockNumber, err := strconv.Atoi(blockNumberStr)
+	if err != nil {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao converter blockNumber para int: %v", err)
+	}
+
 	// Obter o channelGenesisHash
 	channelGenesisHash, err := getChannelGenesisHash(serverIP, token)
 	if err != nil {
@@ -448,19 +454,19 @@ func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token strin
 	}
 
 	// Obter os dados do bloco atual
-	blockData, err := getBlockData(serverIP, channelGenesisHash, blockNumber, token)
+	blockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber), token)
 	if err != nil {
 		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco atual: %v", err)
 	}
 
 	// Obter os dados do bloco anterior
-	prevBlockData, err := getBlockData(serverIP, channelGenesisHash, blockNumber-1, token)
+	prevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber-1), token)
 	if err != nil {
 		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior: %v", err)
 	}
 
 	// Obter os dados do bloco anterior ao anterior
-	prevPrevBlockData, err := getBlockData(serverIP, channelGenesisHash, blockNumber-2, token)
+	prevPrevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber-2), token)
 	if err != nil {
 		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior ao anterior: %v", err)
 	}
@@ -613,7 +619,14 @@ func runCreateAssetBench(tps int, numTransactions int) error {
 	return nil
 }
 
-func calculateBlockNumber(currentBlockNumber int, BT float64, BS int, numTransactions int, tps int) int {
+func calculateBlockNumber(currentBlockNumber string, BT float64, BS int, numTransactions int, tps int) string {
+	// Converter currentBlockNumber de string para int
+	currentBlockInt, err := strconv.Atoi(currentBlockNumber)
+	if err != nil {
+		fmt.Printf("Erro ao converter currentBlockNumber para int: %v\n", err)
+		return currentBlockNumber // Retornar o valor original em caso de erro
+	}
+
 	// Transações possíveis por bloco devido ao Batch Timeout
 	transactionsPerBlockByBT := int(BT * float64(tps))
 
@@ -624,9 +637,10 @@ func calculateBlockNumber(currentBlockNumber int, BT float64, BS int, numTransac
 	blocksNeeded := (numTransactions + transactionsPerBlock - 1) / transactionsPerBlock // Arredondar para cima
 
 	// Novo número de bloco
-	newBlockNumber := currentBlockNumber + blocksNeeded
+	newBlockNumber := currentBlockInt + blocksNeeded
 
-	return newBlockNumber
+	// Converter de volta para string
+	return strconv.Itoa(newBlockNumber)
 }
 
 // Função auxiliar para encontrar o mínimo entre dois inteiros
@@ -640,7 +654,7 @@ func min(a, b int) int {
 func main() {
 	mode := flag.String("mode", "predict", "Modo de operação: predict, modify, bench, benchAv")
 	algo := flag.String("algo", "apbft", "Algoritmo: fabman ou apbft")
-	blockNumber := flag.Int("block", 2, "Número do bloco para análise")
+	blockNumber := flag.String("block", "2", "Número do bloco para análise")
 	batchTimeout := flag.Float64("bt", 2.0, "Batch Timeout atual (em segundos)")
 	batchSize := flag.Int("bs", 10, "Batch Size atual (em número de mensagens)")
 	lambda := flag.Float64("lambda", 0.3, "Fator de suavização para EWMA")
@@ -692,7 +706,7 @@ func main() {
 			fmt.Println("Erro ao rodar o benchmark:", err)
 		} else {
 			newBlockNumber := calculateBlockNumber(*blockNumber, *batchTimeout, *batchSize, *numTransactions, *tps)
-			fmt.Printf("Novo número do bloco: %d\n", newBlockNumber)
+			fmt.Printf("Novo número do bloco: %s\n", newBlockNumber)
 			fmt.Println("Benchmark executado com sucesso.")
 		}
 	case "benchAv":
@@ -736,7 +750,7 @@ func main() {
 
 			currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
 
-			fmt.Printf("Novo número do bloco: %d\n", currentBlockNumber)
+			fmt.Printf("Novo número do bloco: %s\n", currentBlockNumber)
 
 			// Buscar os dados do bloco e transações
 			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber, token)
