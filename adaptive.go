@@ -663,6 +663,51 @@ func min(a, b int) int {
 	return b
 }
 
+func runBenchAv(serverIP string, token string, cargas []int, batchTimeout, tdelay, lambda float64, batchSize, blockNumber, numTransactions int, algo string, alpha float64) {
+	currentBT := batchTimeout
+	currentBS := float64(batchSize)
+	currentBlockNumber := blockNumber
+
+	for index, carga := range cargas {
+		fmt.Printf("Processando carga %d: %d TPS\n", index, carga)
+
+		// Executar benchmark
+		if err := runCreateAssetBench(carga, numTransactions); err != nil {
+			fmt.Println("Erro ao rodar o benchmark:", err)
+			continue
+		}
+
+		// Calcular próximo número do bloco
+		newBlockNumber := calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), numTransactions, carga)
+		fmt.Printf("Novo número do bloco calculado: %d\n", newBlockNumber)
+
+		// Buscar dados do bloco atual
+		fmt.Println("Buscando dados do bloco e transações...")
+		blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, newBlockNumber-2, token)
+		if err != nil {
+			fmt.Printf("Erro ao buscar dados do bloco e transações: %v\n", err)
+			continue
+		}
+
+		// Predizer os próximos Batch Timeout e Batch Size
+		var newBT, newBS float64
+		if algo == "fabman" {
+			newBT, newBS = processFabMAN(currentBT, tdelay, lambda, blockData, prevBlockData, prevPrevBlockData)
+		} else {
+			newBT, newBS = processAPBFT(transactions, currentBT, alpha, blockData)
+		}
+
+		// Modificar os parâmetros no sistema
+		fmt.Printf("Alterando parâmetros: Batch Timeout = %.2f, Batch Size = %.2f\n", newBT, newBS)
+		modifyParameters(newBT, int(newBS))
+
+		// Atualizar valores para próxima iteração
+		currentBT = newBT
+		currentBS = newBS
+		currentBlockNumber = newBlockNumber
+	}
+}
+
 func main() {
 	mode := flag.String("mode", "predict", "Modo de operação: predict, modify, bench, benchAv")
 	algo := flag.String("algo", "apbft", "Algoritmo: fabman ou apbft")
@@ -746,49 +791,20 @@ func main() {
 			return
 		}
 
-		// Variáveis para armazenar os valores de BT, BS e número do bloco
-		currentBT := *batchTimeout
-		currentBS := float64(*batchSize)
-		currentBlockNumber := *blockNumber
-
-		for index, carga := range cargas {
-			fmt.Printf("Processando carga %d: %d TPS\n", index, carga)
-
-			// Executar benchmark
-			if err := runCreateAssetBench(carga, *numTransactions); err != nil {
-				fmt.Println("Erro ao rodar o benchmark:", err)
-				continue
-			}
-
-			// Calcular próximo número do bloco
-			newBlockNumber := calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
-			fmt.Printf("Novo número do bloco calculado: %d\n", newBlockNumber)
-
-			// Buscar dados do bloco atual
-			fmt.Println("Buscando dados do bloco e transações...")
-			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, newBlockNumber-2, token)
-			if err != nil {
-				fmt.Printf("Erro ao buscar dados do bloco e transações: %v\n", err)
-				continue
-			}
-
-			// Predizer os próximos Batch Timeout e Batch Size
-			var newBT, newBS float64
-			if *algo == "fabman" {
-				newBT, newBS = processFabMAN(currentBT, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
-			} else {
-				newBT, newBS = processAPBFT(transactions, currentBT, *alpha, blockData)
-			}
-
-			// Modificar os parâmetros no sistema
-			fmt.Printf("Alterando parâmetros: Batch Timeout = %.2f, Batch Size = %.2f\n", newBT, newBS)
-			modifyParameters(newBT, int(newBS))
-
-			// Atualizar valores para próxima iteração
-			currentBT = newBT
-			currentBS = newBS
-			currentBlockNumber = newBlockNumber
-		}
+		// Chamar a função modularizada
+		runBenchAv(
+			serverIP,
+			token,
+			cargas,
+			*batchTimeout,
+			*tdelay,
+			*lambda,
+			*batchSize,
+			*blockNumber,
+			*numTransactions,
+			*algo,
+			*alpha,
+		)
 
 	default:
 		fmt.Println("Modo inválido. Escolha entre predict, modify, bench ou benchAv.")
