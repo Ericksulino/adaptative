@@ -755,27 +755,24 @@ func main() {
 			fmt.Printf("Processando carga %d: %d TPS\n", index, carga)
 
 			// Executar benchmark
-			err := runCreateAssetBench(carga, *numTransactions)
-			if err != nil {
+			if err := runCreateAssetBench(carga, *numTransactions); err != nil {
 				fmt.Println("Erro ao rodar o benchmark:", err)
 				continue
 			}
 
-			currentBlockNumber = calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
+			// Calcular próximo número do bloco
+			newBlockNumber := calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), *numTransactions, carga)
+			fmt.Printf("Novo número do bloco calculado: %d\n", newBlockNumber)
 
-			fmt.Printf("Novo número do bloco: %d\n", currentBlockNumber)
-
-			time.Sleep(5)
-
-			fmt.Println("Buscando dados do bloco e transações")
-			// Buscar os dados do bloco e transações
-			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber-2, token)
+			// Buscar dados do bloco atual
+			fmt.Println("Buscando dados do bloco e transações...")
+			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, newBlockNumber-2, token)
 			if err != nil {
-				fmt.Println("Erro ao buscar dados do bloco e transações:", err)
+				fmt.Printf("Erro ao buscar dados do bloco e transações: %v\n", err)
 				continue
 			}
 
-			// Predizer os próximos BT e BS
+			// Predizer os próximos Batch Timeout e Batch Size
 			var newBT, newBS float64
 			if *algo == "fabman" {
 				newBT, newBS = processFabMAN(currentBT, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
@@ -783,12 +780,14 @@ func main() {
 				newBT, newBS = processAPBFT(transactions, currentBT, *alpha, blockData)
 			}
 
-			// Modificar os parâmetros com os valores previstos
+			// Modificar os parâmetros no sistema
+			fmt.Printf("Alterando parâmetros: Batch Timeout = %.2f, Batch Size = %.2f\n", newBT, newBS)
 			modifyParameters(newBT, int(newBS))
 
-			// Atualizar os valores para a próxima iteração
+			// Atualizar valores para próxima iteração
 			currentBT = newBT
 			currentBS = newBS
+			currentBlockNumber = newBlockNumber
 		}
 
 	default:
