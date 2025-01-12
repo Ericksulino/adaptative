@@ -153,34 +153,46 @@ func getBlockData(ip, channelGenesisHash, blockNumber, token string) (BlockRespo
 	return blockData, nil
 }
 
-// Função para obter a transação e seu createdt
-func getTransactionCreatedt(ip string, channelGenesisHash, txHash, token string) (string, error) {
-	// URL da API de Transação
-	url := fmt.Sprintf("http://"+ip+":8080/api/transaction/%s/%s", channelGenesisHash, txHash)
+func getTransactionCreatedt(ip, channelGenesisHash, txHash, token string) (string, error) {
+	url := fmt.Sprintf("http://%s:8080/api/transaction/%s/%s", ip, channelGenesisHash, txHash)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("erro ao criar requisição: %v", err)
 	}
 
-	// Adicionando o token JWT no cabeçalho
 	req.Header.Add("Authorization", "Bearer "+token)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("erro ao fazer requisição: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Verificar status da resposta
+	// Se o token estiver expirado (401), tente renová-lo
+	if resp.StatusCode == 401 {
+		fmt.Println("Token expirado. Tentando renovar...")
+		token, err = getJWTToken(ip)
+		if err != nil {
+			return "", fmt.Errorf("erro ao renovar token JWT: %v", err)
+		}
+
+		// Refaça a requisição com o token renovado
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err = client.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("erro ao refazer requisição: %v", err)
+		}
+		defer resp.Body.Close()
+	}
+
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("Erro ao obter informações da transação, status: %d", resp.StatusCode)
 	}
 
-	// Parse da resposta JSON
 	var result TransactionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return "", fmt.Errorf("erro ao decodificar resposta JSON: %v", err)
 	}
 
 	return result.Row.Createdt, nil
