@@ -153,105 +153,90 @@ func getBlockData(ip, channelGenesisHash, blockNumber, token string) (BlockRespo
 	return blockData, nil
 }
 
-func getTransactionCreatedt(ip, channelGenesisHash, txHash, token string) (string, error) {
-	url := fmt.Sprintf("http://%s:8080/api/transaction/%s/%s", ip, channelGenesisHash, txHash)
+// Função para obter a transação e seu createdt
+func getTransactionCreatedt(ip string, channelGenesisHash, txHash, token string) (string, error) {
+	// URL da API de Transação
+	url := fmt.Sprintf("http://"+ip+":8080/api/transaction/%s/%s", channelGenesisHash, txHash)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("erro ao criar requisição: %v", err)
+		return "", err
 	}
 
+	// Adicionando o token JWT no cabeçalho
 	req.Header.Add("Authorization", "Bearer "+token)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("erro ao fazer requisição: %v", err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
-	// Se o token estiver expirado (401), tente renová-lo
-	if resp.StatusCode == 401 {
-		fmt.Println("Token expirado. Tentando renovar...")
-		token, err = getJWTToken(ip)
-		if err != nil {
-			return "", fmt.Errorf("erro ao renovar token JWT: %v", err)
-		}
-
-		// Refaça a requisição com o token renovado
-		req.Header.Set("Authorization", "Bearer "+token)
-		resp, err = client.Do(req)
-		if err != nil {
-			return "", fmt.Errorf("erro ao refazer requisição: %v", err)
-		}
-		defer resp.Body.Close()
-	}
-
+	// Verificar status da resposta
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("Erro ao obter informações da transação, status: %d", resp.StatusCode)
 	}
 
+	// Parse da resposta JSON
 	var result TransactionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("erro ao decodificar resposta JSON: %v", err)
+		return "", err
 	}
 
 	return result.Row.Createdt, nil
 }
 
-// Função para buscar dados de um único bloco
-func fetchCurrentBlockData(serverIP string, blockNumber int, token string) (BlockResponse, error) {
-	channelGenesisHash, err := getChannelGenesisHash(serverIP, token)
-	if err != nil {
-		return BlockResponse{}, fmt.Errorf("erro ao obter channelGenesisHash: %v", err)
-	}
-
-	blockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber), token)
-	if err != nil {
-		return BlockResponse{}, fmt.Errorf("erro ao obter dados do bloco atual (%d): %v", blockNumber, err)
-	}
-
-	return blockData, nil
-}
-
-// Função para buscar dados de múltiplos blocos e transações
 func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
+
+	// Obter o channelGenesisHash
 	channelGenesisHash, err := getChannelGenesisHash(serverIP, token)
 	if err != nil {
 		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter channelGenesisHash: %v", err)
 	}
 
-	// Buscar dados dos blocos
+	// Validar se o blockNumber é válido
+	if blockNumber < 0 {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("blockNumber inválido: %d", blockNumber)
+	}
+
+	// Obter os dados do bloco atual
+	fmt.Printf("Buscando dados do bloco atual: %d\n", blockNumber)
 	blockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber), token)
 	if err != nil {
 		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco atual: %v", err)
 	}
 
-	prevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber-1), token)
+	// Obter os dados do bloco anterior
+	prevBlockNumber := blockNumber - 1
+	if prevBlockNumber < 0 {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("número do bloco anterior inválido: %d", prevBlockNumber)
+	}
+
+	fmt.Printf("Buscando dados do bloco anterior: %d\n", prevBlockNumber)
+	prevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(prevBlockNumber), token)
 	if err != nil {
 		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior: %v", err)
 	}
 
-	prevPrevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber-2), token)
+	// Obter os dados do bloco anterior ao anterior
+	prevPrevBlockNumber := blockNumber - 2
+	if prevPrevBlockNumber < 0 {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("número do bloco anterior ao anterior inválido: %d", prevPrevBlockNumber)
+	}
+
+	fmt.Printf("Buscando dados do bloco anterior ao anterior: %d\n", prevPrevBlockNumber)
+	prevPrevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(prevPrevBlockNumber), token)
 	if err != nil {
 		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior ao anterior: %v", err)
 	}
 
-	// Buscar transações do bloco atual
-	transactions, err := fetchBlockTransactions(serverIP, channelGenesisHash, blockData, token)
-	if err != nil {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao buscar transações: %v", err)
-	}
-
-	return blockData, prevBlockData, prevPrevBlockData, transactions, nil
-}
-
-// Função auxiliar para buscar transações de um bloco
-func fetchBlockTransactions(serverIP, channelGenesisHash string, blockData BlockResponse, token string) ([]Transaction, error) {
+	// Obter transações
+	fmt.Println("Buscando transações do bloco atual...")
 	var transactions []Transaction
 	for _, txHash := range blockData.Data.TxHashes {
 		txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
 		if err != nil {
-			return nil, fmt.Errorf("erro ao obter createdt da transação (%s): %v", txHash, err)
+			return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter createdt da transação: %v", err)
 		}
 
 		transactions = append(transactions, Transaction{
@@ -260,17 +245,17 @@ func fetchBlockTransactions(serverIP, channelGenesisHash string, blockData Block
 		})
 	}
 
-	// Ordenar transações por data
+	// Ordenar as transações por data de criação
 	sort.Slice(transactions, func(i, j int) bool {
 		t1, err1 := time.Parse(time.RFC3339, transactions[i].Createdt)
 		t2, err2 := time.Parse(time.RFC3339, transactions[j].Createdt)
 		if err1 != nil || err2 != nil {
-			return false
+			return false // Se a data não for válida, não muda a ordem
 		}
 		return t1.Before(t2)
 	})
 
-	return transactions, nil
+	return blockData, prevBlockData, prevPrevBlockData, transactions, nil
 }
 
 // Função para calcular o tempo médio de transação (atraso)
@@ -761,13 +746,6 @@ func main() {
 			return
 		}
 
-		// Obter o channelGenesisHash
-		channelGenesisHash, err := getChannelGenesisHash(serverIP, token)
-		if err != nil {
-			fmt.Printf("Erro ao obter channelGenesisHash: %v\n", err)
-			return
-		}
-
 		// Variáveis para armazenar os valores de BT, BS e número do bloco
 		currentBT := *batchTimeout
 		currentBS := float64(*batchSize)
@@ -789,35 +767,19 @@ func main() {
 
 			time.Sleep(5)
 
-			fmt.Println("Buscando dados do bloco e/ou transações...")
+			fmt.Println("Buscando dados do bloco e transações")
+			// Buscar os dados do bloco e transações
+			blockData, prevBlockData, prevPrevBlockData, transactions, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber-2, token)
+			if err != nil {
+				fmt.Println("Erro ao buscar dados do bloco e transações:", err)
+				continue
+			}
+
+			// Predizer os próximos BT e BS
 			var newBT, newBS float64
-
-			// Escolher entre busca de múltiplos blocos ou apenas do bloco atual
 			if *algo == "fabman" {
-				// Buscar múltiplos blocos
-				blockData, prevBlockData, prevPrevBlockData, _, err := fetchBlockDataAndTransactions(serverIP, currentBlockNumber, token)
-				if err != nil {
-					fmt.Println("Erro ao buscar dados dos blocos:", err)
-					continue
-				}
-
-				// Processar usando FabMAN
 				newBT, newBS = processFabMAN(currentBT, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
 			} else {
-				// Buscar apenas o bloco atual e suas transações
-				blockData, err := fetchCurrentBlockData(serverIP, currentBlockNumber, token)
-				if err != nil {
-					fmt.Println("Erro ao buscar dados do bloco atual:", err)
-					continue
-				}
-
-				transactions, err := fetchBlockTransactions(serverIP, token, blockData, channelGenesisHash)
-				if err != nil {
-					fmt.Println("Erro ao buscar transações:", err)
-					continue
-				}
-
-				// Processar usando aPBFT
 				newBT, newBS = processAPBFT(transactions, currentBT, *alpha, blockData)
 			}
 
