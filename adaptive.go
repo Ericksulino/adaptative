@@ -186,6 +186,78 @@ func getTransactionCreatedt(ip string, channelGenesisHash, txHash, token string)
 	return result.Row.Createdt, nil
 }
 
+func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
+
+	// Obter o channelGenesisHash
+	channelGenesisHash, err := getChannelGenesisHash(serverIP, token)
+	if err != nil {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter channelGenesisHash: %v", err)
+	}
+
+	// Validar se o blockNumber é válido
+	if blockNumber < 0 {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("blockNumber inválido: %d", blockNumber)
+	}
+
+	// Obter os dados do bloco atual
+	fmt.Printf("Buscando dados do bloco atual: %d\n", blockNumber)
+	blockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber), token)
+	if err != nil {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco atual: %v", err)
+	}
+
+	// Obter os dados do bloco anterior
+	prevBlockNumber := blockNumber - 1
+	if prevBlockNumber < 0 {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("número do bloco anterior inválido: %d", prevBlockNumber)
+	}
+
+	fmt.Printf("Buscando dados do bloco anterior: %d\n", prevBlockNumber)
+	prevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(prevBlockNumber), token)
+	if err != nil {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior: %v", err)
+	}
+
+	// Obter os dados do bloco anterior ao anterior
+	prevPrevBlockNumber := blockNumber - 2
+	if prevPrevBlockNumber < 0 {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("número do bloco anterior ao anterior inválido: %d", prevPrevBlockNumber)
+	}
+
+	fmt.Printf("Buscando dados do bloco anterior ao anterior: %d\n", prevPrevBlockNumber)
+	prevPrevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(prevPrevBlockNumber), token)
+	if err != nil {
+		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior ao anterior: %v", err)
+	}
+
+	// Obter transações
+	fmt.Println("Buscando transações do bloco atual...")
+	var transactions []Transaction
+	for _, txHash := range blockData.Data.TxHashes {
+		txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
+		if err != nil {
+			return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter createdt da transação: %v", err)
+		}
+
+		transactions = append(transactions, Transaction{
+			TxHash:   txHash,
+			Createdt: txCreatedt,
+		})
+	}
+
+	// Ordenar as transações por data de criação
+	sort.Slice(transactions, func(i, j int) bool {
+		t1, err1 := time.Parse(time.RFC3339, transactions[i].Createdt)
+		t2, err2 := time.Parse(time.RFC3339, transactions[j].Createdt)
+		if err1 != nil || err2 != nil {
+			return false // Se a data não for válida, não muda a ordem
+		}
+		return t1.Before(t2)
+	})
+
+	return blockData, prevBlockData, prevPrevBlockData, transactions, nil
+}
+
 // Função para calcular o tempo médio de transação (atraso)
 func calculateAverageTransactionDelay(transactions []Transaction) (float64, error) {
 	if len(transactions) < 2 {
@@ -261,14 +333,6 @@ func calculateNetworkDelay(currentBlockTime string, prevBlockTime string, batchT
 	return ndelay, nil
 }
 
-// Função para calcular a Potência de Processamento (PW)
-func calculateProcessingPower(tps float64, avgDelay float64) (float64, error) {
-	if avgDelay <= 0 {
-		return 0.0, fmt.Errorf("o atraso médio deve ser maior que 0 para calcular a potência de processamento")
-	}
-	return tps / avgDelay, nil
-}
-
 // EWMA para previsão de valores
 func calculateEWMA(current, previous float64, lambda float64) float64 {
 	return lambda*current + (1-lambda)*previous
@@ -277,6 +341,47 @@ func calculateEWMA(current, previous float64, lambda float64) float64 {
 // Função para calcular o próximo Batch Timeout (BT)
 func calculateNextBatchTimeout(ndelayPred, tdelay float64) float64 {
 	return tdelay - ndelayPred
+}
+
+// Função para executar cálculos e previsões do FabMAN
+func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
+	currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, batchTimeout)
+	if err != nil {
+		fmt.Println("Erro ao calcular Ndelay do bloco atual:", err)
+		return 0, 0 // Retornar valores padrão em caso de erro
+	}
+
+	prevNdelay, err := calculateNetworkDelay(prevBlockData.Data.CreatedAt, prevPrevBlockData.Data.CreatedAt, batchTimeout)
+	if err != nil {
+		fmt.Println("Erro ao calcular Ndelay do bloco anterior:", err)
+		return 0, 0 // Retornar valores padrão em caso de erro
+	}
+
+	nextNdelay := calculateEWMA(currentNdelay, prevNdelay, lambda)
+	nextBatchTimeout := calculateNextBatchTimeout(nextNdelay, tdelay)
+
+	prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, batchTimeout)
+	treq := calculateTransactionRequestRate(blockData.Data.TxCount, batchTimeout)
+	nextTreq := calculateEWMA(treq, prevTreq, lambda)
+	nextBatchSize := calculateNextBatchSize(nextTreq, 2.0, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
+
+	// Prints
+	fmt.Printf("----------fabMAN-------------\n")
+	fmt.Printf("Ndelay Atual: %.2f segundos\n", currentNdelay)
+	fmt.Printf("Ndelay Anterior: %.2f segundos\n", prevNdelay)
+	fmt.Printf("Próximo Ndelay Previsto (EWMA): %.2f segundos\n", nextNdelay)
+	fmt.Printf("Novo Batch Timeout previsto: %.2f segundos\n", nextBatchTimeout)
+	fmt.Printf("Novo Batch Size previsto: %.2f\n", nextBatchSize)
+
+	return nextBatchTimeout, nextBatchSize
+}
+
+// Função para calcular a Potência de Processamento (PW)
+func calculateProcessingPower(tps float64, avgDelay float64) (float64, error) {
+	if avgDelay <= 0 {
+		return 0.0, fmt.Errorf("o atraso médio deve ser maior que 0 para calcular a potência de processamento")
+	}
+	return tps / avgDelay, nil
 }
 
 // Função para ajustar o Batch Size (BS)
@@ -326,8 +431,13 @@ func predictBatchParameters(
 		return 0.0, 0.0, fmt.Errorf("MTA inválido ou zero, divisão impossível")
 	}
 
-	// Predição do Batch Timeout (BT) como MTE
-	predictedBT := currentMTE
+	// Predição do Batch Timeout (BT)
+	var predictedBT float64
+	if MTA >= currentMTE {
+		predictedBT = 0.0 // Sistema está subutilizado
+	} else {
+		predictedBT = currentMTE
+	}
 
 	// Predição do Batch Size (BS)
 	predictedBS := currentMTE / MTA
@@ -336,10 +446,6 @@ func predictBatchParameters(
 	if predictedBT < 0 || predictedBS < 0 {
 		return 0.0, 0.0, fmt.Errorf("valores preditos inválidos: BT=%.2f, BS=%.2f", predictedBT, predictedBS)
 	}
-	//fmt.Printf("orderingTime: %.4f, executionTime: %.4f\n", orderingTime, executionTime)
-	//fmt.Printf("successfulTransactions: %d, elapsedTime: %.4f\n", successfulTransactions, elapsedTime)
-	//fmt.Printf("TEk: %.4f, previousMTE: %.4f, alpha: %.4f\n", TEk, previousMTE, alpha)
-	//fmt.Printf("MTA: %.4f\n", MTA)
 
 	return predictedBT, predictedBS, nil
 }
@@ -384,39 +490,6 @@ func calculateAlpha(W int) (float64, error) {
 	return 1.0 / float64(W), nil
 }
 
-// Função para executar cálculos e previsões do FabMAN
-func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
-	currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, batchTimeout)
-	if err != nil {
-		fmt.Println("Erro ao calcular Ndelay do bloco atual:", err)
-		return 0, 0 // Retornar valores padrão em caso de erro
-	}
-
-	prevNdelay, err := calculateNetworkDelay(prevBlockData.Data.CreatedAt, prevPrevBlockData.Data.CreatedAt, batchTimeout)
-	if err != nil {
-		fmt.Println("Erro ao calcular Ndelay do bloco anterior:", err)
-		return 0, 0 // Retornar valores padrão em caso de erro
-	}
-
-	nextNdelay := calculateEWMA(currentNdelay, prevNdelay, lambda)
-	nextBatchTimeout := calculateNextBatchTimeout(nextNdelay, tdelay)
-
-	prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, batchTimeout)
-	treq := calculateTransactionRequestRate(blockData.Data.TxCount, batchTimeout)
-	nextTreq := calculateEWMA(treq, prevTreq, lambda)
-	nextBatchSize := calculateNextBatchSize(nextTreq, 2.0, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
-
-	// Prints
-	fmt.Printf("----------fabMAN-------------\n")
-	fmt.Printf("Ndelay Atual: %.2f segundos\n", currentNdelay)
-	fmt.Printf("Ndelay Anterior: %.2f segundos\n", prevNdelay)
-	fmt.Printf("Próximo Ndelay Previsto (EWMA): %.2f segundos\n", nextNdelay)
-	fmt.Printf("Novo Batch Timeout previsto: %.2f segundos\n", nextBatchTimeout)
-	fmt.Printf("Novo Batch Size previsto: %.2f\n", nextBatchSize)
-
-	return nextBatchTimeout, nextBatchSize
-}
-
 // Função para executar cálculos e previsões do aPBFT
 func processAPBFT(transactions []Transaction, batchTimeout, alpha float64, blockData BlockResponse) (float64, float64) {
 	orderingTime, executionTime, err := calculateTimes(transactions)
@@ -437,78 +510,6 @@ func processAPBFT(transactions []Transaction, batchTimeout, alpha float64, block
 	fmt.Printf("Predicted Batch Size (BS): %.2f\n", predictedBS)
 
 	return predictedBT, predictedBS
-}
-
-func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
-
-	// Obter o channelGenesisHash
-	channelGenesisHash, err := getChannelGenesisHash(serverIP, token)
-	if err != nil {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter channelGenesisHash: %v", err)
-	}
-
-	// Validar se o blockNumber é válido
-	if blockNumber < 0 {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("blockNumber inválido: %d", blockNumber)
-	}
-
-	// Obter os dados do bloco atual
-	fmt.Printf("Buscando dados do bloco atual: %d\n", blockNumber)
-	blockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(blockNumber), token)
-	if err != nil {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco atual: %v", err)
-	}
-
-	// Obter os dados do bloco anterior
-	prevBlockNumber := blockNumber - 1
-	if prevBlockNumber < 0 {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("número do bloco anterior inválido: %d", prevBlockNumber)
-	}
-
-	fmt.Printf("Buscando dados do bloco anterior: %d\n", prevBlockNumber)
-	prevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(prevBlockNumber), token)
-	if err != nil {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior: %v", err)
-	}
-
-	// Obter os dados do bloco anterior ao anterior
-	prevPrevBlockNumber := blockNumber - 2
-	if prevPrevBlockNumber < 0 {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("número do bloco anterior ao anterior inválido: %d", prevPrevBlockNumber)
-	}
-
-	fmt.Printf("Buscando dados do bloco anterior ao anterior: %d\n", prevPrevBlockNumber)
-	prevPrevBlockData, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(prevPrevBlockNumber), token)
-	if err != nil {
-		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior ao anterior: %v", err)
-	}
-
-	// Obter transações
-	fmt.Println("Buscando transações do bloco atual...")
-	var transactions []Transaction
-	for _, txHash := range blockData.Data.TxHashes {
-		txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
-		if err != nil {
-			return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter createdt da transação: %v", err)
-		}
-
-		transactions = append(transactions, Transaction{
-			TxHash:   txHash,
-			Createdt: txCreatedt,
-		})
-	}
-
-	// Ordenar as transações por data de criação
-	sort.Slice(transactions, func(i, j int) bool {
-		t1, err1 := time.Parse(time.RFC3339, transactions[i].Createdt)
-		t2, err2 := time.Parse(time.RFC3339, transactions[j].Createdt)
-		if err1 != nil || err2 != nil {
-			return false // Se a data não for válida, não muda a ordem
-		}
-		return t1.Before(t2)
-	})
-
-	return blockData, prevBlockData, prevPrevBlockData, transactions, nil
 }
 
 func checkCurrentValues(newBatchTimeout float64, newBatchSize int) bool {
