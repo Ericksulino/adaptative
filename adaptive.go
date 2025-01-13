@@ -598,6 +598,12 @@ func checkUpdatedValues() {
 }
 
 func modifyParameters(newBatchTimeout float64, newBatchSize int) {
+	// Ajustar newBatchSize se for menor que 0
+	if newBatchSize < 0 {
+		fmt.Println("newBatchSize is less than 0. Setting it to 1.")
+		newBatchSize = 1
+	}
+
 	// Verificar valores atuais
 	if !checkCurrentValues(newBatchTimeout, newBatchSize) {
 		return
