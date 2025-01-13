@@ -598,9 +598,9 @@ func checkUpdatedValues() {
 }
 
 func modifyParameters(newBatchTimeout float64, newBatchSize int) {
-	// Ajustar newBatchSize se for menor que 0
-	if newBatchSize < 0 {
-		fmt.Println("newBatchSize is less than 0. Setting it to 1.")
+	// Ajustar newBatchSize se for menor que 1
+	if newBatchSize < 1 {
+		fmt.Println("newBatchSize is less than 1. Setting it to 1.")
 		newBatchSize = 1
 	}
 
