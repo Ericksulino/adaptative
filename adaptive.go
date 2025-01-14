@@ -466,8 +466,20 @@ func predictBatchParameters(
 
 // Função para calcular o orderingTime e executionTime
 func calculateTimes(transactions []Transaction) (float64, float64, error) {
-	if len(transactions) < 2 {
-		return 0.0, 0.0, fmt.Errorf("Número insuficiente de transações para calcular os tempos")
+	if len(transactions) == 0 {
+		return 0.0, 0.0, fmt.Errorf("Nenhuma transação disponível para calcular os tempos")
+	}
+
+	if len(transactions) == 1 {
+		// Caso haja apenas uma transação, usar o tempo desde a transação até agora como orderingTime e executionTime
+		txTimestamp, err := time.Parse(time.RFC3339, transactions[0].Createdt)
+		if err != nil {
+			return 0.0, 0.0, fmt.Errorf("Erro ao analisar o timestamp da transação: %v", err)
+		}
+
+		orderingTime := time.Since(txTimestamp).Seconds()
+		fmt.Printf("Apenas uma transação encontrada. Estimando orderingTime e executionTime como %.2f segundos\n", orderingTime)
+		return orderingTime, orderingTime, nil
 	}
 
 	// Obter o timestamp da primeira e da última transação
