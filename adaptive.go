@@ -260,10 +260,25 @@ func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token strin
 
 // Função para calcular o tempo médio de transação (atraso)
 func calculateAverageTransactionDelay(transactions []Transaction) (float64, error) {
-	if len(transactions) < 2 {
-		return 0.0, fmt.Errorf("não há transações suficientes para calcular o atraso")
+	if len(transactions) == 0 {
+		return 0.0, fmt.Errorf("não há transações para calcular o atraso")
 	}
 
+	// Caso tenha apenas uma transação
+	if len(transactions) == 1 {
+		// Considerar o atraso como um valor padrão ou tempo desde o bloco anterior
+		txTime, err := time.Parse(time.RFC3339, transactions[0].Createdt)
+		if err != nil {
+			return 0.0, err
+		}
+
+		// Suponha um atraso padrão ou use o tempo atual como referência
+		referenceTime := time.Now()
+		delay := referenceTime.Sub(txTime).Seconds()
+		return delay, nil
+	}
+
+	// Caso tenha mais de uma transação
 	// Converter o timestamp da primeira e última transação
 	firstTxTime, err := time.Parse(time.RFC3339, transactions[0].Createdt)
 	if err != nil {
