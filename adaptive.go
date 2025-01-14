@@ -187,7 +187,6 @@ func getTransactionCreatedt(ip string, channelGenesisHash, txHash, token string)
 }
 
 func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token string) (BlockResponse, BlockResponse, BlockResponse, []Transaction, error) {
-
 	// Obter o channelGenesisHash
 	channelGenesisHash, err := getChannelGenesisHash(serverIP, token)
 	if err != nil {
@@ -237,7 +236,7 @@ func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token strin
 		txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
 		if err != nil {
 			fmt.Printf("Erro ao obter createdt da transação: %v\n", err)
-			return prevBlockData, prevBlockData, prevPrevBlockData, []Transaction{}, nil // Retorna o bloco anterior e suas transações
+			return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao buscar transações: %v", err)
 		}
 		transactions = append(transactions, Transaction{
 			TxHash:   txHash,
@@ -245,30 +244,34 @@ func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token strin
 		})
 	}
 
-	// Caso haja somente uma transaçõe no bloco atual, usar as transações do bloco anterior
+	// Caso haja somente uma transação no bloco atual, usar os dados e transações do bloco anterior
 	if len(transactions) == 1 {
-		//fmt.Println("Nenhuma transação no bloco atual. Usando transações do bloco anterior...")
-		var prevTransactions []Transaction
+		fmt.Println("Apenas uma transação encontrada no bloco atual. Usando dados do bloco anterior...")
+		blockData = prevBlockData
+		transactions = nil // Resetar as transações para buscar do bloco anterior
+
+		// Buscar transações do bloco anterior
 		for _, txHash := range prevBlockData.Data.TxHashes {
 			txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
 			if err != nil {
 				fmt.Printf("Erro ao obter createdt da transação do bloco anterior: %v\n", err)
 				continue
 			}
-			prevTransactions = append(prevTransactions, Transaction{
+			transactions = append(transactions, Transaction{
 				TxHash:   txHash,
 				Createdt: txCreatedt,
 			})
 		}
-		return prevBlockData, prevBlockData, prevPrevBlockData, prevTransactions, nil
 	}
 
 	// Ordenar as transações por data de criação
+	fmt.Println("Ordenando transações por timestamp...")
 	sort.Slice(transactions, func(i, j int) bool {
 		t1, err1 := time.Parse(time.RFC3339, transactions[i].Createdt)
 		t2, err2 := time.Parse(time.RFC3339, transactions[j].Createdt)
 		if err1 != nil || err2 != nil {
-			return false // Se a data não for válida, não muda a ordem
+			fmt.Printf("Erro ao analisar timestamps: %v, %v\n", err1, err2)
+			return false
 		}
 		return t1.Before(t2)
 	})
