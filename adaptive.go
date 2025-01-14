@@ -245,9 +245,9 @@ func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token strin
 		})
 	}
 
-	// Caso não haja transações no bloco atual, usar as transações do bloco anterior
-	if len(transactions) < 1 {
-		fmt.Println("Nenhuma transação no bloco atual. Usando transações do bloco anterior...")
+	// Caso haja somente uma transaçõe no bloco atual, usar as transações do bloco anterior
+	if len(transactions) == 1 {
+		//fmt.Println("Nenhuma transação no bloco atual. Usando transações do bloco anterior...")
 		var prevTransactions []Transaction
 		for _, txHash := range prevBlockData.Data.TxHashes {
 			txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
