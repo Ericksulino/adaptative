@@ -230,19 +230,37 @@ func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token strin
 		return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter informações do bloco anterior ao anterior: %v", err)
 	}
 
-	// Obter transações
+	// Obter transações do bloco atual
 	fmt.Println("Buscando transações do bloco atual...")
 	var transactions []Transaction
 	for _, txHash := range blockData.Data.TxHashes {
 		txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
 		if err != nil {
-			return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil, fmt.Errorf("erro ao obter createdt da transação: %v", err)
+			fmt.Printf("Erro ao obter createdt da transação: %v\n", err)
+			return prevBlockData, prevBlockData, prevPrevBlockData, []Transaction{}, nil // Retorna o bloco anterior e suas transações
 		}
-
 		transactions = append(transactions, Transaction{
 			TxHash:   txHash,
 			Createdt: txCreatedt,
 		})
+	}
+
+	// Caso não haja transações no bloco atual, usar as transações do bloco anterior
+	if len(transactions) < 1 {
+		fmt.Println("Nenhuma transação no bloco atual. Usando transações do bloco anterior...")
+		var prevTransactions []Transaction
+		for _, txHash := range prevBlockData.Data.TxHashes {
+			txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
+			if err != nil {
+				fmt.Printf("Erro ao obter createdt da transação do bloco anterior: %v\n", err)
+				continue
+			}
+			prevTransactions = append(prevTransactions, Transaction{
+				TxHash:   txHash,
+				Createdt: txCreatedt,
+			})
+		}
+		return prevBlockData, prevBlockData, prevPrevBlockData, prevTransactions, nil
 	}
 
 	// Ordenar as transações por data de criação
@@ -466,20 +484,8 @@ func predictBatchParameters(
 
 // Função para calcular o orderingTime e executionTime
 func calculateTimes(transactions []Transaction) (float64, float64, error) {
-	if len(transactions) == 0 {
-		return 0.0, 0.0, fmt.Errorf("Nenhuma transação disponível para calcular os tempos")
-	}
-
-	if len(transactions) == 1 {
-		// Caso haja apenas uma transação, usar o tempo desde a transação até agora como orderingTime e executionTime
-		txTimestamp, err := time.Parse(time.RFC3339, transactions[0].Createdt)
-		if err != nil {
-			return 0.0, 0.0, fmt.Errorf("Erro ao analisar o timestamp da transação: %v", err)
-		}
-
-		orderingTime := time.Since(txTimestamp).Seconds()
-		fmt.Printf("Apenas uma transação encontrada. Estimando orderingTime e executionTime como %.2f segundos\n", orderingTime)
-		return orderingTime, orderingTime, nil
+	if len(transactions) < 2 {
+		return 0.0, 0.0, fmt.Errorf("Número insuficiente de transações para calcular os tempos")
 	}
 
 	// Obter o timestamp da primeira e da última transação
