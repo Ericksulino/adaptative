@@ -261,36 +261,35 @@ func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token strin
 // Função para calcular o tempo médio de transação (atraso)
 func calculateAverageTransactionDelay(transactions []Transaction) (float64, error) {
 	if len(transactions) == 0 {
-		return 0.0, fmt.Errorf("não há transações para calcular o atraso")
+		// Caso não haja transações
+		return 0.0, fmt.Errorf("nenhuma transação disponível para calcular o atraso")
 	}
 
-	// Caso tenha apenas uma transação
 	if len(transactions) == 1 {
-		// Considerar o atraso como um valor padrão ou tempo desde o bloco anterior
+		// Caso haja apenas uma transação
 		txTime, err := time.Parse(time.RFC3339, transactions[0].Createdt)
 		if err != nil {
-			return 0.0, err
+			return 0.0, fmt.Errorf("erro ao converter timestamp da transação: %v", err)
 		}
 
-		// Suponha um atraso padrão ou use o tempo atual como referência
-		referenceTime := time.Now()
-		delay := referenceTime.Sub(txTime).Seconds()
+		// Calcula o atraso como o tempo desde a transação até agora
+		delay := time.Since(txTime).Seconds()
+		fmt.Printf("Atraso calculado com uma única transação: %.2f segundos\n", delay)
 		return delay, nil
 	}
 
-	// Caso tenha mais de uma transação
-	// Converter o timestamp da primeira e última transação
+	// Caso haja múltiplas transações, calcular o atraso médio
 	firstTxTime, err := time.Parse(time.RFC3339, transactions[0].Createdt)
 	if err != nil {
-		return 0.0, err
+		return 0.0, fmt.Errorf("erro ao converter timestamp da primeira transação: %v", err)
 	}
 	lastTxTime, err := time.Parse(time.RFC3339, transactions[len(transactions)-1].Createdt)
 	if err != nil {
-		return 0.0, err
+		return 0.0, fmt.Errorf("erro ao converter timestamp da última transação: %v", err)
 	}
 
 	// Calcular o tempo total entre a primeira e a última transação
-	timeDiff := lastTxTime.Sub(firstTxTime).Seconds() // Tempo total em segundos
+	timeDiff := lastTxTime.Sub(firstTxTime).Seconds()
 
 	// Calcular o tempo médio de transação (atraso)
 	avgDelay := timeDiff / float64(len(transactions)-1)
