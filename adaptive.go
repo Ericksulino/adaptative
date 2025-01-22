@@ -378,13 +378,12 @@ func calculateNextBatchTimeout(ndelayPred, tdelay float64) float64 {
 	return tdelay - ndelayPred
 }
 
+// Função para ajustar o Batch Size (BS)
 func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
-	const adjustmentFactor = 0.25 // Ajustar em 25%
-
 	if treqPred >= alpha {
-		return currentBatchSize * (1 + adjustmentFactor) // Aumenta gradualmente
+		return currentBatchSize * 2 // Dobrar BS
 	} else if treqPred < alpha/2 {
-		return currentBatchSize * (1 - adjustmentFactor) // Reduz gradualmente
+		return currentBatchSize / 2 // Reduzir pela metade
 	}
 	return currentBatchSize
 }
