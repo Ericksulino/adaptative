@@ -378,6 +378,16 @@ func calculateNextBatchTimeout(ndelayPred, tdelay float64) float64 {
 	return tdelay - ndelayPred
 }
 
+// Função para ajustar o Batch Size (BS)
+func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
+	if treqPred >= alpha {
+		return currentBatchSize * 2 // Dobrar BS
+	} else if treqPred < alpha/2 {
+		return currentBatchSize / 2 // Reduzir pela metade
+	}
+	return currentBatchSize
+}
+
 // Função para executar cálculos e previsões do FabMAN
 func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
 	currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, batchTimeout)
@@ -398,7 +408,7 @@ func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockDat
 	prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, batchTimeout)
 	treq := calculateTransactionRequestRate(blockData.Data.TxCount, batchTimeout)
 	nextTreq := calculateEWMA(treq, prevTreq, lambda)
-	nextBatchSize := calculateNextBatchSize(nextTreq, 2.0, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
+	nextBatchSize := calculateNextBatchSize(nextTreq, 0.4, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
 
 	// Prints
 	fmt.Printf("----------fabMAN-------------\n")
@@ -417,16 +427,6 @@ func calculateProcessingPower(tps float64, avgDelay float64) (float64, error) {
 		return 0.0, fmt.Errorf("o atraso médio deve ser maior que 0 para calcular a potência de processamento")
 	}
 	return tps / avgDelay, nil
-}
-
-// Função para ajustar o Batch Size (BS)
-func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
-	if treqPred >= alpha {
-		return currentBatchSize * 2 // Dobrar BS
-	} else if treqPred < alpha/2 {
-		return currentBatchSize / 2 // Reduzir pela metade
-	}
-	return currentBatchSize
 }
 
 func calculatePreviousMTE(currentMTE, TEk, alpha float64) (float64, error) {
