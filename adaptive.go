@@ -380,8 +380,10 @@ func calculateNetworkDelay(currentBlockTime string, prevBlockTime string, batchT
 	// // Calcular o tempo entre blocos
 	// timeDiff := currentTime.Sub(prevTime).Seconds()
 
-	timeDiff := calculateTimeBlocks(currentBlockTime,prevBlockTime)
-
+	timeDiff, err := calculateTimeBlocks(currentBlockTime, prevBlockTime)
+	if err != nil {
+		fmt.Println("Erro ao calcular Ndelay do bloco atual:", err)
+	}
 	// Subtrair o Batch Timeout
 	ndelay := timeDiff - batchTimeout
 	return ndelay, nil
@@ -409,7 +411,7 @@ func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
 
 // Função para executar cálculos e previsões do FabMAN
 func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
-	timeDiff := calculateTimeBlocks(blockData.Data.CreatedAt,prevBlockData.Data.CreatedAt)
+	timeDiff, err := calculateTimeBlocks(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt)
 	// currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, batchTimeout)
 	currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, timeDiff)
 	if err != nil {
@@ -417,7 +419,7 @@ func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockDat
 		return 0, 0 // Retornar valores padrão em caso de erro
 	}
 
-	prevTimeDiff := calculateTimeBlocks(prevBlockData.Data.CreatedAt, prevPrevBlockData.Data.CreatedAt)
+	prevTimeDiff, err := calculateTimeBlocks(prevBlockData.Data.CreatedAt, prevPrevBlockData.Data.CreatedAt)
 	// prevNdelay, err := calculateNetworkDelay(prevBlockData.Data.CreatedAt, prevPrevBlockData.Data.CreatedAt, batchTimeout)
 	prevNdelay, err := calculateNetworkDelay(prevBlockData.Data.CreatedAt, prevPrevBlockData.Data.CreatedAt, prevTimeDiff)
 	if err != nil {
