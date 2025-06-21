@@ -410,7 +410,7 @@ func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
 }
 
 // Função para executar cálculos e previsões do FabMAN
-func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
+func processFabMAN(batchTimeout, tdelay, lambda float64, alpha float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
 	timeDiff, err := calculateTimeBlocks(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt)
 	// currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, batchTimeout)
 	currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, timeDiff)
@@ -435,7 +435,7 @@ func processFabMAN(batchTimeout, tdelay, lambda float64, blockData, prevBlockDat
 	prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, prevTimeDiff)
 	treq := calculateTransactionRequestRate(blockData.Data.TxCount, timeDiff)
 	nextTreq := calculateEWMA(treq, prevTreq, lambda)
-	nextBatchSize := calculateNextBatchSize(nextTreq, 0.9, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
+	nextBatchSize := calculateNextBatchSize(nextTreq, alpha, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
 
 	// Prints
 	fmt.Printf("----------fabMAN-------------\n")
@@ -760,7 +760,7 @@ func runBenchAv(serverIP string, token string, cargas []int, batchTimeout, tdela
 		// Predizer os próximos Batch Timeout e Batch Size
 		var newBT, newBS float64
 		if algo == "fabman" {
-			newBT, newBS = processFabMAN(currentBT, tdelay, lambda, blockData, prevBlockData, prevPrevBlockData)
+			newBT, newBS = processFabMAN(currentBT, tdelay, lambda, alpha, blockData, prevBlockData, prevPrevBlockData)
 		} else {
 			newBT, newBS = processAPBFT(transactions, currentBT, alpha, blockData)
 		}
@@ -810,7 +810,7 @@ func main() {
 
 		switch *algo {
 		case "fabman":
-			processFabMAN(*batchTimeout, *tdelay, *lambda, blockData, prevBlockData, prevPrevBlockData)
+			processFabMAN(*batchTimeout, *tdelay, *lambda, *alpha, blockData, prevBlockData, prevPrevBlockData)
 		case "apbft":
 			processAPBFT(transactions, *batchTimeout, *alpha, blockData)
 		default:
