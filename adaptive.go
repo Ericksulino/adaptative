@@ -401,6 +401,7 @@ func calculateNextBatchTimeout(ndelayPred, tdelay float64) float64 {
 
 // Função para ajustar o Batch Size (BS)
 func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
+	fmt.Printf("Alpha: %.2f", alpha)
 	if treqPred >= alpha {
 		return currentBatchSize * 2 // Dobrar BS
 	} else if treqPred < alpha/2 {
@@ -410,7 +411,7 @@ func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
 }
 
 // Função para executar cálculos e previsões do FabMAN
-func processFabMAN(batchTimeout, tdelay, lambda float64, alpha float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
+func processFabMAN(batchTimeout float64, batchSize int, tdelay, lambda float64, alpha float64, blockData, prevBlockData, prevPrevBlockData BlockResponse) (float64, float64) {
 	timeDiff, err := calculateTimeBlocks(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt)
 	// currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, batchTimeout)
 	currentNdelay, err := calculateNetworkDelay(blockData.Data.CreatedAt, prevBlockData.Data.CreatedAt, timeDiff)
@@ -435,7 +436,7 @@ func processFabMAN(batchTimeout, tdelay, lambda float64, alpha float64, blockDat
 	prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, prevTimeDiff)
 	treq := calculateTransactionRequestRate(blockData.Data.TxCount, timeDiff)
 	nextTreq := calculateEWMA(treq, prevTreq, lambda)
-	nextBatchSize := calculateNextBatchSize(nextTreq, alpha, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
+	nextBatchSize := calculateNextBatchSize(nextTreq, float64(batchSize)/batchTimeout, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
 
 	// Prints
 	fmt.Printf("----------fabMAN-------------\n")
@@ -733,7 +734,7 @@ func min(a, b int) int {
 
 func runBenchAv(serverIP string, token string, cargas []int, batchTimeout, tdelay, lambda float64, batchSize, blockNumber, numTransactions int, algo string, alpha float64) {
 	currentBT := batchTimeout
-	currentBS := float64(batchSize)
+	currentBS := batchSize
 	currentBlockNumber := blockNumber
 
 	for index, carga := range cargas {
@@ -760,7 +761,7 @@ func runBenchAv(serverIP string, token string, cargas []int, batchTimeout, tdela
 		// Predizer os próximos Batch Timeout e Batch Size
 		var newBT, newBS float64
 		if algo == "fabman" {
-			newBT, newBS = processFabMAN(currentBT, tdelay, lambda, alpha, blockData, prevBlockData, prevPrevBlockData)
+			newBT, newBS = processFabMAN(currentBT, currentBS, tdelay, lambda, alpha, blockData, prevBlockData, prevPrevBlockData)
 		} else {
 			newBT, newBS = processAPBFT(transactions, currentBT, alpha, blockData)
 		}
@@ -771,7 +772,7 @@ func runBenchAv(serverIP string, token string, cargas []int, batchTimeout, tdela
 
 		// Atualizar valores para próxima iteração
 		currentBT = newBT
-		currentBS = newBS
+		currentBS = int(newBS)
 		currentBlockNumber = newBlockNumber
 	}
 }
@@ -810,7 +811,7 @@ func main() {
 
 		switch *algo {
 		case "fabman":
-			processFabMAN(*batchTimeout, *tdelay, *lambda, *alpha, blockData, prevBlockData, prevPrevBlockData)
+			processFabMAN(*batchTimeout, *batchSize, *tdelay, *lambda, *alpha, blockData, prevBlockData, prevPrevBlockData)
 		case "apbft":
 			processAPBFT(transactions, *batchTimeout, *alpha, blockData)
 		default:
