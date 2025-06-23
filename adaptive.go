@@ -401,7 +401,7 @@ func calculateNextBatchTimeout(ndelayPred, tdelay float64) float64 {
 
 // Função para ajustar o Batch Size (BS)
 func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
-	fmt.Printf("Alpha: %.2f", alpha)
+	fmt.Printf("Alpha: %.2f\n", alpha)
 	if treqPred >= alpha {
 		return currentBatchSize * 2 // Dobrar BS
 	} else if treqPred < alpha/2 {
@@ -436,7 +436,8 @@ func processFabMAN(batchTimeout float64, batchSize int, tdelay, lambda float64, 
 	prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, prevTimeDiff)
 	treq := calculateTransactionRequestRate(blockData.Data.TxCount, timeDiff)
 	nextTreq := calculateEWMA(treq, prevTreq, lambda)
-	nextBatchSize := calculateNextBatchSize(nextTreq, float64(batchSize)/batchTimeout, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
+	//nextBatchSize := calculateNextBatchSize(nextTreq, float64(batchSize)/batchTimeout, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
+	nextBatchSize := calculateNextBatchSize(nextTreq, alpha, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
 
 	// Prints
 	fmt.Printf("----------fabMAN-------------\n")
