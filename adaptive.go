@@ -401,7 +401,7 @@ func calculateNextBatchTimeout(ndelayPred, tdelay float64) float64 {
 
 // Função para ajustar o Batch Size (BS)
 func calculateNextBatchSize(treqPred, alpha, currentBatchSize float64) float64 {
-	fmt.Printf("Alpha: %.2f\n", alpha)
+	fmt.Printf("Treq Previsto: %.2f\n", treqPred)
 	if treqPred >= alpha*currentBatchSize {
 		return currentBatchSize * 2 // Dobrar BS
 	} else if treqPred < alpha*(currentBatchSize/2) {
