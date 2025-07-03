@@ -439,11 +439,11 @@ func processFabMAN(batchTimeout float64, batchSize int, tdelay, lambda float64, 
 
 	// prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, batchTimeout)
 	// treq := calculateTransactionRequestRate(blockData.Data.TxCount, batchTimeout)
-	//prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, prevTimeDiff)
+	prevTreq := calculateTransactionRequestRate(prevBlockData.Data.TxCount, prevTimeDiff)
 	treq := calculateTransactionRequestRate(blockData.Data.TxCount, timeDiff)
-	//nextTreq := calculateEWMA(treq, prevTreq, lambda)
+	nextTreq := calculateEWMA(treq, prevTreq, lambda)
 	//nextBatchSize := calculateNextBatchSize(nextTreq, float64(batchSize)/batchTimeout, float64(blockData.Data.TxCount)) // "2.0" é um exemplo de alfa
-	nextBatchSize := calculateNextBatchSize(treq, 0.9, float64(batchSize)) // "2.0" é um exemplo de alfa
+	nextBatchSize := calculateNextBatchSize(nextTreq, 0.9, float64(batchSize)) // "2.0" é um exemplo de alfa
 
 	// Prints
 	fmt.Printf("----------fabMAN-------------\n")
