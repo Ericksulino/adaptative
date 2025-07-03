@@ -345,7 +345,7 @@ func calculateTPS(transactions []Transaction) (float64, error) {
 func calculateTransactionRequestRate(txCount int, batchTimeout float64) float64 {
 	fmt.Printf("Calculando Treq...\n")
 	fmt.Printf("txCout: %d\n", txCount)
-	fmt.Printf("timeDiff: %d\n", batchTimeout)
+	fmt.Printf("timeDiff: %2f\n", batchTimeout)
 	if batchTimeout <= 0 {
 		return 0.0
 	}
