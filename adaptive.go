@@ -244,23 +244,57 @@ func fetchBlockDataAndTransactions(serverIP string, blockNumber int, token strin
 		})
 	}
 
-	// Caso haja somente uma transação no bloco atual, usar os dados e transações do bloco anterior
-	if len(transactions) == 1 {
-		fmt.Println("Apenas uma transação encontrada no bloco atual. Usando dados do bloco anterior...")
-		blockData = prevBlockData
-		transactions = nil // Resetar as transações para buscar do bloco anterior
+	// Caso haja menos de duas transações, continuar voltando blocos até achar um bloco válido
+	if len(transactions) < 2 {
+		fmt.Printf("Bloco %s possui apenas %d transações. Buscando bloco anterior...\n",
+			blockData.Data.BlockNum, len(transactions))
 
-		// Buscar transações do bloco anterior
-		for _, txHash := range prevBlockData.Data.TxHashes {
-			txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
+		found := false
+		current := blockNumber - 1
+
+		for current >= 0 {
+			fmt.Printf("Tentando bloco %d...\n", current)
+
+			// Buscar dados do bloco atual da iteração
+			tempBlock, err := getBlockData(serverIP, channelGenesisHash, strconv.Itoa(current), token)
 			if err != nil {
-				fmt.Printf("Erro ao obter createdt da transação do bloco anterior: %v\n", err)
+				fmt.Printf("Erro ao obter bloco %d: %v\n", current, err)
+				current--
 				continue
 			}
-			transactions = append(transactions, Transaction{
-				TxHash:   txHash,
-				Createdt: txCreatedt,
-			})
+
+			// Buscar transações dele
+			tempTxs := []Transaction{}
+			for _, txHash := range tempBlock.Data.TxHashes {
+				txCreatedt, err := getTransactionCreatedt(serverIP, channelGenesisHash, txHash, token)
+				if err != nil {
+					fmt.Printf("Erro ao obter createdt da tx %s: %v\n", txHash, err)
+					continue
+				}
+				tempTxs = append(tempTxs, Transaction{
+					TxHash:   txHash,
+					Createdt: txCreatedt,
+				})
+			}
+
+			// Se encontrou >= 2 transações, esse é o bloco que queremos
+			if len(tempTxs) >= 2 {
+				fmt.Printf("Bloco %d possui %d transações. Usando este bloco!\n", current, len(tempTxs))
+				blockData = tempBlock
+				transactions = tempTxs
+				found = true
+				break
+			}
+
+			fmt.Printf("Bloco %d possui apenas %d transações. Continuando...\n",
+				current, len(tempTxs))
+
+			current--
+		}
+
+		if !found {
+			return BlockResponse{}, BlockResponse{}, BlockResponse{}, nil,
+				fmt.Errorf("não foi encontrado nenhum bloco com transações suficientes")
 		}
 	}
 
@@ -668,6 +702,11 @@ func checkUpdatedValues() {
 }
 
 func modifyParameters(newBatchTimeout float64, newBatchSize int) {
+	// Impedir BatchTimeout inválido
+	if newBatchTimeout <= 0 {
+		fmt.Printf("BatchTimeout inválido (%.2f). Ajustando para mínimo de 0.10s\n", newBatchTimeout)
+		newBatchTimeout = 0.10
+	}
 	// Ajustar newBatchSize se for menor que 1
 	if newBatchSize < 1 {
 		fmt.Println("newBatchSize is less than 1. Setting it to 1.")
