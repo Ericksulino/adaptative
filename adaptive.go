@@ -752,6 +752,27 @@ func runCreateAssetBench(tps int, numTransactions int) error {
 	return nil
 }
 
+// runCreateAssetBenchTime executa o comando para criar ativos no Fabric Client
+func runCreateAssetBenchTime(tps int, time int) error {
+	// Diretório onde o script está localizado (volta uma pasta antes de HLF_PET_go/)
+	clientDir := "../HLF_PET_go/"
+
+	// Montar o comando completo com o caminho relativo
+	cmd := exec.Command(clientDir+"fabric-client", "createAssetBench", fmt.Sprintf("%d", tps), fmt.Sprintf("%d", time))
+
+	// Executar o comando
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Erro ao executar o comando: %v\n", err)
+		fmt.Printf("Saída do comando: %s\n", string(output))
+		return err
+	}
+
+	// Exibir a saída do comando
+	fmt.Printf("Saída do comando:\n%s\n", string(output))
+	return nil
+}
+
 func calculateBlockNumber(currentBlockNumber int, BT float64, BS int, numTransactions int, tps int) int {
 
 	// Transações possíveis por bloco devido ao Batch Timeout
@@ -778,22 +799,39 @@ func min(a, b int) int {
 	return b
 }
 
-func runBenchAv(serverIP string, token string, cargas []int, batchTimeout, tdelay, lambda float64, batchSize, blockNumber, numTransactions int, algo string, alpha float64) {
+func CalculaTotalTransacoes(tps int, tempoSegundos int) int {
+	// Transações Totais = TPS * Tempo em Segundos
+	// Exemplo: 100 TPS * 10 segundos = 1000 Transações
+	totalTransacoes := tps * tempoSegundos
+	return totalTransacoes
+}
+
+func runBenchAv(serverIP string, token string, cargas []int, modeBench string, time int, batchTimeout, tdelay, lambda float64, batchSize, blockNumber, numTransactions int, algo string, alpha float64) {
 	currentBT := batchTimeout
 	currentBS := batchSize
 	currentBlockNumber := blockNumber
+	var transacoesParaCalculo int // Nova variável para ser usada no calculateBlockNumber
 
 	for index, carga := range cargas {
 		fmt.Printf("Processando carga %d: %d TPS\n", index, carga)
 
 		// Executar benchmark
-		if err := runCreateAssetBench(carga, numTransactions); err != nil {
-			fmt.Println("Erro ao rodar o benchmark:", err)
-			continue
+		if modeBench == "numTrans" {
+			if err := runCreateAssetBench(carga, numTransactions); err != nil {
+				fmt.Println("Erro ao rodar o benchmark:", err)
+				continue
+			}
+			transacoesParaCalculo = numTransactions
+		} else if modeBench == "time" {
+			if err := runCreateAssetBenchTime(carga, time); err != nil {
+				fmt.Println("Erro ao rodar o benchmark:", err)
+				continue
+			}
+			transacoesParaCalculo = CalculaTotalTransacoes(carga, time)
 		}
 
 		// Calcular próximo número do bloco
-		newBlockNumber := calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), numTransactions, carga)
+		newBlockNumber := calculateBlockNumber(currentBlockNumber, currentBT, int(currentBS), transacoesParaCalculo, carga)
 		fmt.Printf("Novo número do bloco calculado: %d\n", newBlockNumber)
 
 		// Buscar dados do bloco atual
@@ -834,6 +872,8 @@ func main() {
 	tdelay := flag.Float64("tdelay", 3.0, "Latência máxima tolerada pelo sistema (Tdelay)")
 	tps := flag.Int("tps", 5, "Transações por segundo (apenas para bench)")
 	numTransactions := flag.Int("numTx", 100, "Número de transações totais (apenas para bench)")
+	modeBench := flag.String("modeBench", "numTrans", "Modo de operação de Bench: predict, numTrans, time")
+	time := flag.Int("time", 10, "Tempo de cada ciclo (apenas para bench)")
 	cargasFlag := flag.String("loads", "5,5,5", "Lista de cargas sepradas por vírgulas")
 	flag.Parse()
 
@@ -911,6 +951,8 @@ func main() {
 			serverIP,
 			token,
 			cargas,
+			*modeBench,
+			*time,
 			*batchTimeout,
 			*tdelay,
 			*lambda,
