@@ -812,8 +812,10 @@ func runBenchAv(serverIP string, token string, cargas []int, modeBench string, t
 	currentBlockNumber := blockNumber
 	var transacoesParaCalculo int // Nova variável para ser usada no calculateBlockNumber
 
+	modeBench = strings.TrimSpace(modeBench)
+
 	for index, carga := range cargas {
-		fmt.Printf("Processando carga %d: %d TPS\n", index, carga)
+		fmt.Printf("Processando carga %d: %d TPS Modo: %s\n", index, carga, modeBench)
 
 		// Executar benchmark
 		if modeBench == "numTrans" {
