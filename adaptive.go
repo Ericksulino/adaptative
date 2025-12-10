@@ -965,7 +965,14 @@ func runBenchAv(serverIP string, token string, cargas []int, modeBench string, t
 
 		// Modificar os parâmetros no sistema
 		fmt.Printf("Alterando parâmetros: Batch Timeout = %.2f, Batch Size = %.2f\n", newBT, newBS)
-		modifyParameters(newBT, int(newBS))
+		//modifyParameters(newBT, int(newBS))
+		args := fmt.Sprintf("%d %.2f", int(newBS), newBT)
+
+		output, err := runRemoteScript(args)
+
+		// Exibe a saída completa do script
+		fmt.Println("--- Script Executado com Sucesso na VM ---")
+		fmt.Println(output)
 
 		// Atualizar valores para próxima iteração
 		currentBT = newBT
@@ -1068,7 +1075,8 @@ func main() {
 			cargas[i] = num
 		}
 
-		serverIP := `localhost`
+		// serverIP := `localhost`
+		serverIP := remoteConfig.Host
 		fmt.Printf("Utilizando IP: %s\n", serverIP)
 
 		// Obter o token JWT
