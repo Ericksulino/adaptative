@@ -758,7 +758,7 @@ func runCreateAssetBenchTime(tps int, time int) error {
 	clientDir := "../HLF_PET_go/"
 
 	// Montar o comando completo com o caminho relativo
-	cmd := exec.Command(clientDir+"fabric-client", "createAssetBench", fmt.Sprintf("%d", tps), fmt.Sprintf("%d", time))
+	cmd := exec.Command(clientDir+"fabric-client", "createAssetBenchTime", fmt.Sprintf("%d", tps), fmt.Sprintf("%d", time))
 
 	// Executar o comando
 	output, err := cmd.CombinedOutput()
@@ -819,14 +819,14 @@ func runBenchAv(serverIP string, token string, cargas []int, modeBench string, t
 
 		// Executar benchmark
 		if modeBench == "numTrans" {
-			fmt.Printf("DEBUG: ENTROU NO MODO 'numTrans' Num: %d\n", numTransactions)
+			//fmt.Printf("DEBUG: ENTROU NO MODO 'numTrans' Num: %d\n", numTransactions)
 			if err := runCreateAssetBench(carga, numTransactions); err != nil {
 				fmt.Println("Erro ao rodar o benchmark:", err)
 				continue
 			}
 			transacoesParaCalculo = numTransactions
 		} else if modeBench == "time" {
-			fmt.Printf("DEBUG: ENTROU NO MODO 'time' Time: %d\n", time)
+			//fmt.Printf("DEBUG: ENTROU NO MODO 'time' Time: %d\n", time)
 			if err := runCreateAssetBenchTime(carga, time); err != nil {
 				fmt.Println("Erro ao rodar o benchmark:", err)
 				continue
