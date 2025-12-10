@@ -819,12 +819,14 @@ func runBenchAv(serverIP string, token string, cargas []int, modeBench string, t
 
 		// Executar benchmark
 		if modeBench == "numTrans" {
+			fmt.Printf("DEBUG: ENTROU NO MODO 'numTrans' Num: %d\n", numTransactions)
 			if err := runCreateAssetBench(carga, numTransactions); err != nil {
 				fmt.Println("Erro ao rodar o benchmark:", err)
 				continue
 			}
 			transacoesParaCalculo = numTransactions
 		} else if modeBench == "time" {
+			fmt.Printf("DEBUG: ENTROU NO MODO 'time' Time: %d\n", time)
 			if err := runCreateAssetBenchTime(carga, time); err != nil {
 				fmt.Println("Erro ao rodar o benchmark:", err)
 				continue
