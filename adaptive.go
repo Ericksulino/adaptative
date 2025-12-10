@@ -6,11 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 // Estrutura para representar uma transação
@@ -44,6 +47,43 @@ func createHTTPClient() *http.Client {
 	}
 }
 
+// Estrutura para manter os detalhes de conexão carregados
+type RemoteConfig struct {
+	User     string
+	Host     string
+	Port     string
+	Password string
+}
+
+const RemoteScriptDir = "~/fabric-samples/4host-swarm/HLF-Batch-Scripts"
+const ScriptName = "./modify_batch_params.sh"
+
+var remoteConfig RemoteConfig
+
+func init() {
+	// flag.Parse() // Inicializa o parsing dos argumentos
+
+	// Carrega o arquivo .env
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Warning: Could not load .env file. Assuming environment variables are set externally.")
+	}
+
+	// Carrega os dados para a estrutura
+	remoteConfig = RemoteConfig{
+		User: os.Getenv("SSH_USER"),
+		Host: os.Getenv("SSH_HOST"),
+		Port: os.Getenv("SSH_PORT"),
+	}
+
+	// Verificação mínima CORRIGIDA (apenas Host, User e Porta são necessários para Chaves SSH)
+	if remoteConfig.User == "" || remoteConfig.Host == "" || remoteConfig.Port == "" {
+		fmt.Println("Error: Missing one or more required SSH variables (SSH_USER, SSH_HOST, SSH_PORT).")
+		// É recomendável sair aqui se os dados de conexão remota são obrigatórios.
+		os.Exit(1)
+	}
+}
+
 // Função para executar comandos no shell
 func runCommand(command string) string {
 	cmd := exec.Command("bash", "-c", command)
@@ -59,6 +99,39 @@ func runCommand(command string) string {
 	}
 
 	return out.String()
+}
+
+// runRemoteCommand executa um comando no host remoto usando Chaves SSH.
+func runRemoteCommand(command string) string {
+	// A chave privada no ~/.ssh/id_rsa será usada automaticamente pelo cliente SSH.
+
+	// Comando SSH: ssh -p <port> <user>@<host> '<command>'
+	fullCommand := fmt.Sprintf("ssh -p %s %s@%s '%s'",
+		remoteConfig.Port,
+		remoteConfig.User,
+		remoteConfig.Host,
+		command)
+
+	fmt.Printf("-> Executing remote command via SSH: %s\n", command)
+
+	// Cria o comando
+	// Usamos "sh -c" para garantir que o escaping de caracteres no comando SSH seja tratado corretamente.
+	cmd := exec.Command("sh", "-c", fullCommand)
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	// Executa
+	if err := cmd.Run(); err != nil {
+		outputString := strings.TrimSpace(out.String() + "\n" + stderr.String())
+		fmt.Printf("FATAL ERROR: Remote command failed (SSH or Docker/Fabric failed). Output:\n%s\n", outputString)
+		// Adicionando panic para diagnóstico, para que o programa pare e mostre o erro real da VM.
+		panic(err)
+	}
+
+	return strings.TrimSpace(out.String())
 }
 
 func getJWTToken(ip string) (string, error) {
@@ -731,6 +804,42 @@ func modifyParameters(newBatchTimeout float64, newBatchSize int) {
 	fmt.Println("Batch size and batch timeout modification completed successfully.")
 }
 
+// runRemoteScript executa um script shell completo no host remoto.
+func runRemoteScript(scriptArgs string) (string, error) {
+	if remoteConfig.User == "" {
+		return "", fmt.Errorf("Erro: Configuração remota não carregada. Variáveis SSH faltando.")
+	}
+
+	// 1. Comando a ser executado na VM:
+	// Navega para o diretório E executa o script com os argumentos
+	// Ex: cd /path/to/script && ./modify_batch_params.sh arg1 arg2
+	remoteCommand := fmt.Sprintf("cd %s && %s %s", RemoteScriptDir, ScriptName, scriptArgs)
+
+	// 2. Comando SSH completo (para ser executado no shell do Mac)
+	// ssh -p <port> <user>@<host> 'cd /path/to/script && ./modify_batch_params.sh args'
+	fullSSHCommand := fmt.Sprintf("ssh -p %s %s@%s '%s'",
+		remoteConfig.Port,
+		remoteConfig.User,
+		remoteConfig.Host,
+		remoteCommand)
+
+	fmt.Printf("-> Executing remote script: %s\n", remoteCommand)
+
+	// Cria e executa o comando
+	cmd := exec.Command("sh", "-c", fullSSHCommand)
+
+	// Captura a saída e o erro
+	output, err := cmd.CombinedOutput()
+	outputString := strings.TrimSpace(string(output))
+
+	if err != nil {
+		// Retorna o erro do sistema e a saída completa da VM (que inclui o erro do script)
+		return outputString, fmt.Errorf("Falha na execução remota do script: %v. Output da VM:\n%s", err, outputString)
+	}
+
+	return outputString, nil
+}
+
 // runCreateAssetBench executa o comando para criar ativos no Fabric Client
 func runCreateAssetBench(tps int, numTransactions int) error {
 	// Diretório onde o script está localizado (volta uma pasta antes de HLF_PET_go/)
@@ -866,6 +975,7 @@ func runBenchAv(serverIP string, token string, cargas []int, modeBench string, t
 }
 
 func main() {
+
 	mode := flag.String("mode", "predict", "Modo de operação: predict, modify, bench, benchAv")
 	algo := flag.String("algo", "apbft", "Algoritmo: fabman ou apbft")
 	blockNumber := flag.Int("block", 2, "Número do bloco para análise")
@@ -884,7 +994,8 @@ func main() {
 	switch *mode {
 	case "predict":
 		// Previsão de parâmetros
-		serverIP := `localhost`
+		//serverIP := `localhost`
+		serverIP := remoteConfig.Host
 		fmt.Printf("Utilizando IP: %s\n", serverIP)
 
 		token, err := getJWTToken(serverIP)
@@ -913,7 +1024,24 @@ func main() {
 		// Modificação de parâmetros
 		fmt.Println("Modo modify selecionado")
 		modifyParameters(*batchTimeout, *batchSize)
+	case "modifyRem":
+		fmt.Println("Modo modify Remoto selecionado")
 
+		args := fmt.Sprintf("%d %.2f", *batchSize, *batchTimeout)
+
+		output, err := runRemoteScript(args)
+
+		if err != nil {
+			fmt.Println("-------------------------------------------")
+			fmt.Println("ERRO CRÍTICO NA EXECUÇÃO REMOTA")
+			fmt.Println(err.Error())
+			fmt.Println("-------------------------------------------")
+			os.Exit(1)
+		}
+
+		// Exibe a saída completa do script
+		fmt.Println("--- Script Executado com Sucesso na VM ---")
+		fmt.Println(output)
 	case "bench":
 		// Benchmark
 		fmt.Printf("Iniciando benchmark com TPS=%d e numTransactions=%d\n", *tps, *numTransactions)
